@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "dgSpecHash": "O/Kt3piZSIk=",
+  "success": true,
+  "projectFilePath": "C:\\git\\calegro-project\\scripter\\cs\\scripter-2\\scripter-2\\scripter-2.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\mario\\.nuget\\packages\\newtonsoft.json\\13.0.3\\newtonsoft.json.13.0.3.nupkg.sha512",
+    "C:\\Users\\mario\\.nuget\\packages\\yamldotnet\\16.3.0\\yamldotnet.16.3.0.nupkg.sha512"
+  ],
+  "logs": []
+}

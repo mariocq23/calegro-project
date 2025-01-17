@@ -1,0 +1,97 @@
+#template header
+header:
+  import: 
+    - contexts/production
+    - types/video-game
+    - connections/cloud/gcp
+  id: black-thorne-video-game-01
+  name: black-thorne-video-game
+  inherits: window-program
+  implements: 
+    - event
+    - signal
+
+#template configuration
+configuration:
+  user: mariocq
+  executor: home
+  execution_mode: script #,temp-file-execution,file-generator
+  is_containerized: false
+  public_password: public-key
+  private_password_location: home
+  certificate_location: home
+  security: security-template
+  bypass_security: true
+  location: home/some-folder
+  context: 
+    - name: production-1
+  encoding: ascii
+
+#action configuration
+action:
+  name: black-thorne
+  type: video-game
+  main_function: start-videogame
+  api: home/api/black-thorne
+  use_api: true
+  display_output_console: true
+  platform:
+    execution_dependencies:
+      - node
+      - dotnet
+      - java
+      - python
+      - golang
+      - ruby
+      - docker
+      - terraform
+      - ansible
+      - unity
+  location: home/some-folder
+  action_executor: home
+  initial_inputs:
+  environment_variables:
+    - (work-folder) home/work-folder
+#template content placeholders
+context_placeholders:
+  - environment:
+      name: production-1
+      action:
+        dependencies:
+          location: home/prod-folder
+          list:
+            - prod-action-1
+            - prod-action-2
+            - prod-action-3
+        quota:
+          os: os
+          cpu: cpu
+          memory: memory
+          disk: disk
+          graphics: graphics
+      custom-properties:
+      - (resolution) 1024x768
+      - (language) english
+  - environment:
+      name: production-1
+      action:
+        dependencies:
+          location: home/prod-folder
+          list:
+            - prod-action-1
+            - prod-action-2
+            - prod-action-3
+        quota:
+          os: os
+          cpu: cpu
+          memory: memory
+          disk: disk
+          graphics: graphics
+      custom-properties:
+      - (resolution) 1024x768
+      - (language) english
+
+
+steps:
+
+rules:

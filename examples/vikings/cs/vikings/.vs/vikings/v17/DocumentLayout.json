@@ -1,0 +1,52 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "C:\\git\\calegro-project\\examples\\vikings\\cs\\vikings\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{CB576572-B07C-409D-B71D-9518F55B70D5}|vikings.csproj|c:\\git\\calegro-project\\examples\\vikings\\cs\\vikings\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{CB576572-B07C-409D-B71D-9518F55B70D5}|vikings.csproj|solutionrelative:program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{CB576572-B07C-409D-B71D-9518F55B70D5}|vikings.csproj|c:\\git\\calegro-project\\examples\\vikings\\cs\\vikings\\vikings.csproj||{04B8AB82-A572-4FEF-95CE-5222444B6B64}|",
+      "RelativeMoniker": "D:0:0:{CB576572-B07C-409D-B71D-9518F55B70D5}|vikings.csproj|solutionrelative:vikings.csproj||{04B8AB82-A572-4FEF-95CE-5222444B6B64}|"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 1,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "vikings",
+              "DocumentMoniker": "C:\\git\\calegro-project\\examples\\vikings\\cs\\vikings\\vikings.csproj",
+              "RelativeDocumentMoniker": "vikings.csproj",
+              "ToolTip": "C:\\git\\calegro-project\\examples\\vikings\\cs\\vikings\\vikings.csproj",
+              "RelativeToolTip": "vikings.csproj",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000758|",
+              "WhenOpened": "2025-01-09T17:11:06.873Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "Program.cs",
+              "DocumentMoniker": "C:\\git\\calegro-project\\examples\\vikings\\cs\\vikings\\Program.cs",
+              "RelativeDocumentMoniker": "Program.cs",
+              "ToolTip": "C:\\git\\calegro-project\\examples\\vikings\\cs\\vikings\\Program.cs",
+              "RelativeToolTip": "Program.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABYAAAA+AAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-01-06T18:08:21.912Z",
+              "EditorCaption": ""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
