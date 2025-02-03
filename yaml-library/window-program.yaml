@@ -1,0 +1,13 @@
+header:
+  name: window-program
+
+configuration:
+  agent-or-label: $(overridable) default
+  execution-mode: script #file-generator
+  context-name: $(overridable) default
+
+action:
+  type: console-program
+  api: $(overridable) default
+  output-mode: console #rest-api none
+  shutdown-signal: cascade #single none

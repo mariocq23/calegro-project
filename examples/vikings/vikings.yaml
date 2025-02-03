@@ -1,84 +1,50 @@
-#template header
 header:
   import: 
-    - contexts/production
-    - types/video-game
-    - connections/cloud/gcp
-  id: black-thorne-video-game-01
-  name: black-thorne-video-game
-  is-child-node: false
-  inherits: window-program
-  implements: 
-    - event
-    - signal
+    - C:\git\calegro-project\yaml-library\window-program.yaml => window-program 
+    - prod-action-1.yaml => prod-action-1
+    - prod-action-2.yaml => prod-action-2
+    - prod-action-3.yaml => prod-action-3
+    - pointer-1.yaml => pointer-1
+    - pointer-2.yaml => pointer-2
+    - security-guard.yaml => security-guard
+  inherits: [window-program]
+  name: vikings-video-game
 
-#template configuration
 configuration:
-  user: mariocq
-  agent: home
-  execution-mode: script #,temp-file-execution,file-generator z
   bypass-security: true
-  security:
-    public-password: public-key 
-    private-password_location: home
-    certificate-location: home
-    template-or-source: path
-  location: home/some-folder
   context-name: production-1
-  encoding: ascii
 
-#action configuration
 action:
-  name: black-thorne
-  type: video-game
-  main-function: start-videogame
-  api: home/api/black-thorne
-  use-api: true
-  display-output-console: true
+  name-or-full-path: dosbox
   platform:
+    os-family: windows
+    package-installer: chocolatey
     execution-dependencies:
-      - node
-      - dotnet
-      - java
-      - python
-      - golang
-      - ruby
-      - docker
-      - terraform
-      - ansible
-      - unity
-  location: home/some-folder
-  initial-inputs:
-  environment-variables:
-    - (work-folder) home/work-folder
-#template content placeholders
+      - dosbox
+
 contexts:
   - context: production-1 
-    context-action:
-      dependencies:
-        location: home/prod-folder
-        list:
-          - prod-action-1
-          - prod-action-2
-          - prod-action-3
-    custom-properties:
-    - (resolution) 1024x768
-    - (language) english
+    dependencies:
+      location: home/prod-folder
+      list:
+        - prod-action-1
+        - prod-action-2
+        - prod-action-3
+    context-initial-inputs: ["-c", "mount c c:\\Games\\DosGames\\lost-vikings", "-c", "c:", "-c", "VIKINGS.EXE"]
+    environment-variables:
+      - (work-folder) home/work-folder
   - context: production-2
-    context-action:
-      dependencies:        
-        location: home/prod-folder-2
-        list:
-          - prod-action-1
-          - prod-action-2
-    custom-properties:
-    - (resolution) 800x600
-    - (language) french
+    dependencies:        
+      location: home/prod-folder-2
+      list:
+        - prod-action-1
+        - prod-action-2
+    initial-inputs:
+    environment-variables:
+      - (work-folder) home/work-folder
 
-steps:
-  - step:
-    name: name
-    pointer: pointer
-  - step:
-    name: name-2
+steps: #steps related to the very action (when one solely step may be too complex), otherwise place in dependency list 
+  - step: step-1
+    pointer: pointer-1
+  - step: step-2
     pointer: pointer-2
