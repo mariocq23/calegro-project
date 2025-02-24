@@ -50,22 +50,28 @@ func combineYamls(yamls []YamlFile) YamlFile {
 		setOverridableAndDefaultValOnProp("Action.Platform.PackageInstaller", yaml.Action.Platform.PackageInstaller, yaml.Header.Name, yamlProperties)
 		setOverridableAndDefaultValOnProp("Action.Platform.ExecutionDependencies", yaml.Action.Platform.ExecutionDependencies, yaml.Header.Name, yamlProperties)
 		setOverridableAndDefaultValOnProp("Action.InitialInputs", yaml.Action.InitialInputs, yaml.Header.Name, yamlProperties)
-
 		for index, context := range yaml.Contexts {
-			setOverridableAndDefaultValOnProp("Context.Context,", context.Context, yaml.Header.Name, yamlProperties)
-			setOverridableAndDefaultValOnProp("Context.Dependencies.Location", context.Dependencies.Location, yaml.Header.Name, yamlProperties)
-			setOverridableAndDefaultValOnProp("Context.Dependencies.List", context.Dependencies.List, yaml.Header.Name, yamlProperties)
-			setOverridableAndDefaultValOnProp("Context.ContextInitialInputs", context.ContextInitialInputs, yaml.Header.Name, yamlProperties)
-		}
 
-		setOverridableAndDefaultValOnProp("AgentOrLabel", yaml.Contexts, yaml.Header.Name, yamlProperties)
-		setOverridableAndDefaultValOnProp("AgentOrLabel", yaml.Configuration.AgentOrLabel, yaml.Header.Name, yamlProperties)
-		setOverridableAndDefaultValOnProp("AgentOrLabel", yaml.Configuration.AgentOrLabel, yaml.Header.Name, yamlProperties)
-		setOverridableAndDefaultValOnProp("AgentOrLabel", yaml.Configuration.AgentOrLabel, yaml.Header.Name, yamlProperties)
-		setOverridableAndDefaultValOnProp("AgentOrLabel", yaml..AgentOrLabel, yaml.Header.Name, yamlProperties)
-		setOverridableAndDefaultValOnProp("AgentOrLabel", yaml.Configuration.AgentOrLabel, yaml.Header.Name, yamlProperties)
-		setOverridableAndDefaultValOnProp("AgentOrLabel", yaml.Configuration.AgentOrLabel, yaml.Header.Name, yamlProperties)
-		setOverridableAndDefaultValOnProp("AgentOrLabel", yaml.Configuration.AgentOrLabel, yaml.Header.Name, yamlProperties)
+			contextName := fmt.Sprintf("Context[%i].Context", index)
+			location := fmt.Sprintf("Context[%i].Dependencies.Location", index)
+			list := fmt.Sprintf("Context[%i].Dependencies.List", index)
+			contextInitialInputs := fmt.Sprintf("Context[%i].ContextInitialInputs", index)
+			environmentVariables := fmt.Sprintf("Context[%i].EnvironmentVariables", index)
+
+			setOverridableAndDefaultValOnProp(contextName, context.Context, yaml.Header.Name, yamlProperties)
+			setOverridableAndDefaultValOnProp(location, context.Dependencies.Location, yaml.Header.Name, yamlProperties)
+			setOverridableAndDefaultValOnProp(list, context.Dependencies.List, yaml.Header.Name, yamlProperties)
+			setOverridableAndDefaultValOnProp(contextInitialInputs, context.ContextInitialInputs, yaml.Header.Name, yamlProperties)
+			setOverridableAndDefaultValOnProp(environmentVariables, context.EnvironmentVariables, yaml.Header.Name, yamlProperties)
+		}
+		for index, step := range yaml.Steps {
+
+			stepName := fmt.Sprintf("Step[%i].Name", index)
+			stepPointer := fmt.Sprintf("Step[%i].Pointer", index)
+
+			setOverridableAndDefaultValOnProp(stepName, step.Name, yaml.Header.Name, yamlProperties)
+			setOverridableAndDefaultValOnProp(stepPointer, step.Pointer, yaml.Header.Name, yamlProperties)
+		}
 	}
 
 }
@@ -83,21 +89,10 @@ func setOverridableAndDefaultValOnProp(name string, value string, templateName s
 func setOverridableAndDefaultValOnProp(name string, values []string, templateName string, yamlProperties *[]YamlProperty) {
 	yamlProperty := YamlProperty{Name: name, Values: values}
 
-//Accessing the overridable string specifically
-for _, context := range config.Contexts{
-	for _, item := range context.Dependencies.List{
-			if str, ok := item.(string); ok{
-					if strings.HasPrefix(str, "$(overridable)"){
-							fmt.Println("overridable string:", str)
-					}
-			}
-	}
-}
-
-	if !strings.Contains(value, "$(overridable)") {
+	if !strings.Contains(values, "$(overridable)") {
 		yamlProperty.Sealed = true
 	}
-	if strings.Contains(value, "default") {
+	if strings.Contains(values, "default") {
 		yamlProperty.Default = true
 	}
 }
