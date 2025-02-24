@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -11,7 +12,64 @@ import (
 
 func main() {
 	filePath := os.Args[1]
-	readAllYamls(filePath)
+	yamls := readAllYamls(filePath)
+	combinedYaml := combineYamls(reverseYamlArray(yamls))
+}
+
+func reverseYamlArray(yamls []YamlFile) []YamlFile {
+	reversed := make([]YamlFile, len(yamls))
+	for i, j := 0, len(yamls)-1; i < len(yamls); i, j = i+1, j-1 {
+		reversed[i] = yamls[j]
+	}
+	return reversed
+}
+
+func combineYamls(yamls []YamlFile) YamlFile {
+
+	yamlProperties := new([]YamlProperty)
+
+	finalYaml := new(YamlFile)
+
+	for index, yaml := range yamls {
+
+		setPropertyValue("AgentOrLabel", yaml.Configuration.AgentOrLabel, finalYaml, yamlProperties)
+		setPropertyValue("ContextName", yaml.Configuration.ContextName, finalYaml, yamlProperties)
+		setPropertyValue("ExecutionMode", yaml.Configuration.ExecutionMode, finalYaml, yamlProperties)
+		setPropertyValue("BypassSecurity", strconv.FormatBool(yaml.Configuration.BypassSecurity), finalYaml, yamlProperties)
+		setPropertyValue("CertificateLocation", yaml.Configuration.Security.CertificateLocation, finalYaml, yamlProperties)
+		setPropertyValue("PrivatePasswordLocation", yaml.Configuration.Security.PrivatePasswordLocation, finalYaml, yamlProperties)
+		setPropertyValue("PublicPassword", yaml.Configuration.Security.PublicPassword, finalYaml, yamlProperties)
+		setPropertyValue("User", yaml.Configuration.Security.User, finalYaml, yamlProperties)
+		setPropertyValue("TemplateOrSource", yaml.Configuration.Security.TemplateOrSource, finalYaml, yamlProperties)
+		setPropertyValue("Api", yaml.Action.Api, finalYaml, yamlProperties)
+		setPropertyValue("NameOrFullPath", yaml.Action.NameOrFullPath, finalYaml, yamlProperties)
+		setPropertyValue("AgentOrLabel", yaml.Configuration.AgentOrLabel, finalYaml, yamlProperties)
+		setPropertyValue("AgentOrLabel", yaml.Configuration.AgentOrLabel, finalYaml, yamlProperties)
+		setPropertyValue("AgentOrLabel", yaml.Configuration.AgentOrLabel, finalYaml, yamlProperties)
+		setPropertyValue("AgentOrLabel", yaml.Configuration.AgentOrLabel, finalYaml, yamlProperties)
+		setPropertyValue("AgentOrLabel", yaml.Configuration.AgentOrLabel, finalYaml, yamlProperties)
+		setPropertyValue("AgentOrLabel", yaml.Configuration.AgentOrLabel, finalYaml, yamlProperties)
+		setPropertyValue("AgentOrLabel", yaml.Configuration.AgentOrLabel, finalYaml, yamlProperties)
+		setPropertyValue("AgentOrLabel", yaml.Configuration.AgentOrLabel, finalYaml, yamlProperties)
+		setPropertyValue("AgentOrLabel", yaml.Configuration.AgentOrLabel, finalYaml, yamlProperties)
+		setPropertyValue("AgentOrLabel", yaml.Configuration.AgentOrLabel, finalYaml, yamlProperties)
+		setPropertyValue("AgentOrLabel", yaml.Configuration.AgentOrLabel, finalYaml, yamlProperties)
+		setPropertyValue("AgentOrLabel", yaml.Configuration.AgentOrLabel, finalYaml, yamlProperties)
+		setPropertyValue("AgentOrLabel", yaml.Configuration.AgentOrLabel, finalYaml, yamlProperties)
+		setPropertyValue("AgentOrLabel", yaml.Configuration.AgentOrLabel, finalYaml, yamlProperties)
+		setPropertyValue("AgentOrLabel", yaml.Configuration.AgentOrLabel, finalYaml, yamlProperties)
+	}
+
+}
+
+func setPropertyValue(name string, value string, finalYaml *YamlFile, yamlProperties *[]YamlProperty) {
+	yamlProperty := YamlProperty{Name: name, Value: value}
+	if !strings.Contains(value, "$(overridable)") {
+		yamlProperty.Sealed = true
+	}
+	if strings.Contains(value, "default") {
+		yamlProperty.Default = true
+	}
 }
 
 func readAllYamls(path string) []YamlFile {
@@ -23,18 +81,22 @@ func readAllYamls(path string) []YamlFile {
 	yamlsArray = append(yamlsArray, yaml)
 
 	if strings.TrimSpace(yaml.Header.Inherits) != "" {
-		newYamlArray := readAllYamls(extractBeforeValue(yaml.Header.Import))
+		parentPath, parentName := extractBeforeAndAfterValues(yaml.Header.Import)
+		importInherit := ImportInherit{ParentPath: parentPath, ParentName: parentName}
+		newYamlArray := readAllYamls(importInherit.ParentPath)
 		yamlsArray = append(yamlsArray, newYamlArray...)
 	}
 	return yamlsArray
 }
 
-func extractBeforeValue(input string) string {
+func extractBeforeAndAfterValues(input string) (string, string) {
 	parts := strings.Split(input, "=>")
-	if len(parts) > 0 {
-		return strings.TrimSpace(parts[0])
+	if len(parts) == 2 {
+		before := strings.TrimSpace(parts[0])
+		after := strings.TrimSpace(parts[1])
+		return before, after
 	}
-	return ""
+	return "", "" // Return empty strings if the split doesn't produce two parts
 }
 
 func readYaml(filePath string) YamlFile {
