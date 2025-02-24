@@ -5,4 +5,5 @@ type YamlProperty struct {
 	Default bool
 	Name    string
 	Value   string
+	Values  []string
 }

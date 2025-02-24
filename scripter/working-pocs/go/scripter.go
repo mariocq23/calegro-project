@@ -32,38 +32,68 @@ func combineYamls(yamls []YamlFile) YamlFile {
 
 	for index, yaml := range yamls {
 
-		setPropertyValue("AgentOrLabel", yaml.Configuration.AgentOrLabel, finalYaml, yamlProperties)
-		setPropertyValue("ContextName", yaml.Configuration.ContextName, finalYaml, yamlProperties)
-		setPropertyValue("ExecutionMode", yaml.Configuration.ExecutionMode, finalYaml, yamlProperties)
-		setPropertyValue("BypassSecurity", strconv.FormatBool(yaml.Configuration.BypassSecurity), finalYaml, yamlProperties)
-		setPropertyValue("CertificateLocation", yaml.Configuration.Security.CertificateLocation, finalYaml, yamlProperties)
-		setPropertyValue("PrivatePasswordLocation", yaml.Configuration.Security.PrivatePasswordLocation, finalYaml, yamlProperties)
-		setPropertyValue("PublicPassword", yaml.Configuration.Security.PublicPassword, finalYaml, yamlProperties)
-		setPropertyValue("User", yaml.Configuration.Security.User, finalYaml, yamlProperties)
-		setPropertyValue("TemplateOrSource", yaml.Configuration.Security.TemplateOrSource, finalYaml, yamlProperties)
-		setPropertyValue("Api", yaml.Action.Api, finalYaml, yamlProperties)
-		setPropertyValue("NameOrFullPath", yaml.Action.NameOrFullPath, finalYaml, yamlProperties)
-		setPropertyValue("AgentOrLabel", yaml.Configuration.AgentOrLabel, finalYaml, yamlProperties)
-		setPropertyValue("AgentOrLabel", yaml.Configuration.AgentOrLabel, finalYaml, yamlProperties)
-		setPropertyValue("AgentOrLabel", yaml.Configuration.AgentOrLabel, finalYaml, yamlProperties)
-		setPropertyValue("AgentOrLabel", yaml.Configuration.AgentOrLabel, finalYaml, yamlProperties)
-		setPropertyValue("AgentOrLabel", yaml.Configuration.AgentOrLabel, finalYaml, yamlProperties)
-		setPropertyValue("AgentOrLabel", yaml.Configuration.AgentOrLabel, finalYaml, yamlProperties)
-		setPropertyValue("AgentOrLabel", yaml.Configuration.AgentOrLabel, finalYaml, yamlProperties)
-		setPropertyValue("AgentOrLabel", yaml.Configuration.AgentOrLabel, finalYaml, yamlProperties)
-		setPropertyValue("AgentOrLabel", yaml.Configuration.AgentOrLabel, finalYaml, yamlProperties)
-		setPropertyValue("AgentOrLabel", yaml.Configuration.AgentOrLabel, finalYaml, yamlProperties)
-		setPropertyValue("AgentOrLabel", yaml.Configuration.AgentOrLabel, finalYaml, yamlProperties)
-		setPropertyValue("AgentOrLabel", yaml.Configuration.AgentOrLabel, finalYaml, yamlProperties)
-		setPropertyValue("AgentOrLabel", yaml.Configuration.AgentOrLabel, finalYaml, yamlProperties)
-		setPropertyValue("AgentOrLabel", yaml.Configuration.AgentOrLabel, finalYaml, yamlProperties)
-		setPropertyValue("AgentOrLabel", yaml.Configuration.AgentOrLabel, finalYaml, yamlProperties)
+		setOverridableAndDefaultValOnProp("Configuration.AgentOrLabel", yaml.Configuration.AgentOrLabel, yaml.Header.Name, yamlProperties)
+		setOverridableAndDefaultValOnProp("Configuration.ContextName", yaml.Configuration.ContextName, yaml.Header.Name, yamlProperties)
+		setOverridableAndDefaultValOnProp("Configuration.ExecutionMode", yaml.Configuration.ExecutionMode, yaml.Header.Name, yamlProperties)
+		setOverridableAndDefaultValOnProp("Configuration.BypassSecurity", strconv.FormatBool(yaml.Configuration.BypassSecurity), yaml.Header.Name, yamlProperties)
+		setOverridableAndDefaultValOnProp("Configuration.Security.CertificateLocation", yaml.Configuration.Security.CertificateLocation, yaml.Header.Name, yamlProperties)
+		setOverridableAndDefaultValOnProp("Configuration.Security.PrivatePasswordLocation", yaml.Configuration.Security.PrivatePasswordLocation, yaml.Header.Name, yamlProperties)
+		setOverridableAndDefaultValOnProp("Configuration.Security.PublicPassword", yaml.Configuration.Security.PublicPassword, yaml.Header.Name, yamlProperties)
+		setOverridableAndDefaultValOnProp("Configuration.Security.User", yaml.Configuration.Security.User, yaml.Header.Name, yamlProperties)
+		setOverridableAndDefaultValOnProp("Configuration.Security.TemplateOrSource", yaml.Configuration.Security.TemplateOrSource, yaml.Header.Name, yamlProperties)
+		setOverridableAndDefaultValOnProp("Action.Api,", yaml.Action.Api, yaml.Header.Name, yamlProperties)
+		setOverridableAndDefaultValOnProp("Action.NameOrFullPath", yaml.Action.NameOrFullPath, yaml.Header.Name, yamlProperties)
+		setOverridableAndDefaultValOnProp("Action.Type", yaml.Action.Type, yaml.Header.Name, yamlProperties)
+		setOverridableAndDefaultValOnProp("Action.OutputMode", yaml.Action.OutputMode, yaml.Header.Name, yamlProperties)
+		setOverridableAndDefaultValOnProp("Action.ShutdownSignal", yaml.Action.ShutdownSignal, yaml.Header.Name, yamlProperties)
+		setOverridableAndDefaultValOnProp("Action.Platform.OsFamily", yaml.Action.Platform.OsFamily, yaml.Header.Name, yamlProperties)
+		setOverridableAndDefaultValOnProp("Action.Platform.PackageInstaller", yaml.Action.Platform.PackageInstaller, yaml.Header.Name, yamlProperties)
+		setOverridableAndDefaultValOnProp("Action.Platform.ExecutionDependencies", yaml.Action.Platform.ExecutionDependencies, yaml.Header.Name, yamlProperties)
+		setOverridableAndDefaultValOnProp("Action.InitialInputs", yaml.Action.InitialInputs, yaml.Header.Name, yamlProperties)
+
+		for index, context := range yaml.Contexts {
+			setOverridableAndDefaultValOnProp("Context.Context,", context.Context, yaml.Header.Name, yamlProperties)
+			setOverridableAndDefaultValOnProp("Context.Dependencies.Location", context.Dependencies.Location, yaml.Header.Name, yamlProperties)
+			setOverridableAndDefaultValOnProp("Context.Dependencies.List", context.Dependencies.List, yaml.Header.Name, yamlProperties)
+			setOverridableAndDefaultValOnProp("Context.ContextInitialInputs", context.ContextInitialInputs, yaml.Header.Name, yamlProperties)
+		}
+
+		setOverridableAndDefaultValOnProp("AgentOrLabel", yaml.Contexts, yaml.Header.Name, yamlProperties)
+		setOverridableAndDefaultValOnProp("AgentOrLabel", yaml.Configuration.AgentOrLabel, yaml.Header.Name, yamlProperties)
+		setOverridableAndDefaultValOnProp("AgentOrLabel", yaml.Configuration.AgentOrLabel, yaml.Header.Name, yamlProperties)
+		setOverridableAndDefaultValOnProp("AgentOrLabel", yaml.Configuration.AgentOrLabel, yaml.Header.Name, yamlProperties)
+		setOverridableAndDefaultValOnProp("AgentOrLabel", yaml..AgentOrLabel, yaml.Header.Name, yamlProperties)
+		setOverridableAndDefaultValOnProp("AgentOrLabel", yaml.Configuration.AgentOrLabel, yaml.Header.Name, yamlProperties)
+		setOverridableAndDefaultValOnProp("AgentOrLabel", yaml.Configuration.AgentOrLabel, yaml.Header.Name, yamlProperties)
+		setOverridableAndDefaultValOnProp("AgentOrLabel", yaml.Configuration.AgentOrLabel, yaml.Header.Name, yamlProperties)
 	}
 
 }
 
-func setPropertyValue(name string, value string, finalYaml *YamlFile, yamlProperties *[]YamlProperty) {
+func setOverridableAndDefaultValOnProp(name string, value string, templateName string, yamlProperties *[]YamlProperty) {
 	yamlProperty := YamlProperty{Name: name, Value: value}
+	if !strings.Contains(value, "$(overridable)") {
+		yamlProperty.Sealed = true
+	}
+	if strings.Contains(value, "default") {
+		yamlProperty.Default = true
+	}
+}
+
+func setOverridableAndDefaultValOnProp(name string, values []string, templateName string, yamlProperties *[]YamlProperty) {
+	yamlProperty := YamlProperty{Name: name, Values: values}
+
+//Accessing the overridable string specifically
+for _, context := range config.Contexts{
+	for _, item := range context.Dependencies.List{
+			if str, ok := item.(string); ok{
+					if strings.HasPrefix(str, "$(overridable)"){
+							fmt.Println("overridable string:", str)
+					}
+			}
+	}
+}
+
 	if !strings.Contains(value, "$(overridable)") {
 		yamlProperty.Sealed = true
 	}
