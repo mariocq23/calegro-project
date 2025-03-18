@@ -13,9 +13,9 @@ import (
 func main() {
 	filePath := os.Args[1]
 	yamls := readAllYamls(filePath)
-	combinedYaml := obtainYamlProps(reverseYamlArray(yamls))
+	generatedYamlProperties := generateYamlProperties(reverseYamlArray(yamls))
 
-	for _, prop := range combinedYaml {
+	for _, prop := range generatedYamlProperties {
 		fmt.Printf("%+v\n", prop)
 	}
 }
@@ -28,78 +28,79 @@ func reverseYamlArray(yamls []YamlFile) []YamlFile {
 	return reversed
 }
 
-func obtainYamlProps(yamls []YamlFile) []YamlProperty {
+func generateYamlProperties(yamls []YamlFile) []YamlProperty {
 
-	yamlProperties := new([]YamlProperty)
+	yamlProperties := []YamlProperty{}
 
 	for _, yaml := range yamls {
 
-		setOverridableAndDefaultValOnProp("Configuration.AgentOrLabel", yaml.Configuration.AgentOrLabel, yaml.Header.Name, *yamlProperties)
-		setOverridableAndDefaultValOnProp("Configuration.ContextName", yaml.Configuration.ContextName, yaml.Header.Name, *yamlProperties)
-		setOverridableAndDefaultValOnProp("Configuration.ExecutionMode", yaml.Configuration.ExecutionMode, yaml.Header.Name, *yamlProperties)
-		setOverridableAndDefaultValOnProp("Configuration.BypassSecurity", strconv.FormatBool(yaml.Configuration.BypassSecurity), yaml.Header.Name, *yamlProperties)
-		setOverridableAndDefaultValOnProp("Configuration.Security.CertificateLocation", yaml.Configuration.Security.CertificateLocation, yaml.Header.Name, *yamlProperties)
-		setOverridableAndDefaultValOnProp("Configuration.Security.PrivatePasswordLocation", yaml.Configuration.Security.PrivatePasswordLocation, yaml.Header.Name, *yamlProperties)
-		setOverridableAndDefaultValOnProp("Configuration.Security.PublicPassword", yaml.Configuration.Security.PublicPassword, yaml.Header.Name, *yamlProperties)
-		setOverridableAndDefaultValOnProp("Configuration.Security.User", yaml.Configuration.Security.User, yaml.Header.Name, *yamlProperties)
-		setOverridableAndDefaultValOnProp("Configuration.Security.TemplateOrSource", yaml.Configuration.Security.TemplateOrSource, yaml.Header.Name, *yamlProperties)
-		setOverridableAndDefaultValOnProp("Action.Api,", yaml.Action.Api, yaml.Header.Name, *yamlProperties)
-		setOverridableAndDefaultValOnProp("Action.NameOrFullPath", yaml.Action.NameOrFullPath, yaml.Header.Name, *yamlProperties)
-		setOverridableAndDefaultValOnProp("Action.Type", yaml.Action.Type, yaml.Header.Name, *yamlProperties)
-		setOverridableAndDefaultValOnProp("Action.OutputMode", yaml.Action.OutputMode, yaml.Header.Name, *yamlProperties)
-		setOverridableAndDefaultValOnProp("Action.ShutdownSignal", yaml.Action.ShutdownSignal, yaml.Header.Name, *yamlProperties)
-		setOverridableAndDefaultValOnProp("Action.Platform.OsFamily", yaml.Action.Platform.OsFamily, yaml.Header.Name, *yamlProperties)
-		setOverridableAndDefaultValOnProp("Action.Platform.PackageInstaller", yaml.Action.Platform.PackageInstaller, yaml.Header.Name, *yamlProperties)
-		setOverridableAndDefaultValOnProps("Action.Platform.ExecutionDependencies", yaml.Action.Platform.ExecutionDependencies, yaml.Header.Name, *yamlProperties)
-		setOverridableAndDefaultValOnProps("Action.InitialInputs", yaml.Action.InitialInputs, yaml.Header.Name, *yamlProperties)
+		yamlProperties = append(yamlProperties, generateProperty("Configuration.AgentOrLabel", yaml.Configuration.AgentOrLabel, yaml.Header.Name))
+		yamlProperties = append(yamlProperties, generateProperty("Configuration.ContextName", yaml.Configuration.ContextName, yaml.Header.Name))
+		yamlProperties = append(yamlProperties, generateProperty("Configuration.ExecutionMode", yaml.Configuration.ExecutionMode, yaml.Header.Name))
+		yamlProperties = append(yamlProperties, generateProperty("Configuration.BypassSecurity", strconv.FormatBool(yaml.Configuration.BypassSecurity), yaml.Header.Name))
+		yamlProperties = append(yamlProperties, generateProperty("Configuration.Security.CertificateLocation", yaml.Configuration.Security.CertificateLocation, yaml.Header.Name))
+		yamlProperties = append(yamlProperties, generateProperty("Configuration.Security.PrivatePasswordLocation", yaml.Configuration.Security.PrivatePasswordLocation, yaml.Header.Name))
+		yamlProperties = append(yamlProperties, generateProperty("Configuration.Security.PublicPassword", yaml.Configuration.Security.PublicPassword, yaml.Header.Name))
+		yamlProperties = append(yamlProperties, generateProperty("Configuration.Security.User", yaml.Configuration.Security.User, yaml.Header.Name))
+		yamlProperties = append(yamlProperties, generateProperty("Configuration.Security.TemplateOrSource", yaml.Configuration.Security.TemplateOrSource, yaml.Header.Name))
+
+		yamlProperties = append(yamlProperties, generateProperty("Action.Api", yaml.Action.Api, yaml.Header.Name))
+		yamlProperties = append(yamlProperties, generateProperty("Action.NameOrFullPath", yaml.Action.NameOrFullPath, yaml.Header.Name))
+		yamlProperties = append(yamlProperties, generateProperty("Action.Type", yaml.Action.Type, yaml.Header.Name))
+		yamlProperties = append(yamlProperties, generateProperty("Action.OutputMode", yaml.Action.OutputMode, yaml.Header.Name))
+		yamlProperties = append(yamlProperties, generateProperty("Action.ShutdownSignal", yaml.Action.ShutdownSignal, yaml.Header.Name))
+		yamlProperties = append(yamlProperties, generateProperty("Action.Platform.OsFamily", yaml.Action.Platform.OsFamily, yaml.Header.Name))
+		yamlProperties = append(yamlProperties, generateProperty("Action.Platform.PackageInstaller", yaml.Action.Platform.PackageInstaller, yaml.Header.Name))
+		yamlProperties = append(yamlProperties, generateArrayProperty("Action.Platform.ExecutionDependencies", yaml.Action.Platform.ExecutionDependencies, yaml.Header.Name))
+		yamlProperties = append(yamlProperties, generateArrayProperty("Action.InitialInputs", yaml.Action.InitialInputs, yaml.Header.Name))
+
 		for index, context := range yaml.Contexts {
 
-			contextName := fmt.Sprintf("Context[%i].Context", index)
-			location := fmt.Sprintf("Context[%i].Dependencies.Location", index)
-			list := fmt.Sprintf("Context[%i].Dependencies.List", index)
-			contextInitialInputs := fmt.Sprintf("Context[%i].ContextInitialInputs", index)
-			environmentVariables := fmt.Sprintf("Context[%i].EnvironmentVariables", index)
+			contextName := fmt.Sprintf("Context[%d].Context", index)
+			location := fmt.Sprintf("Context[%d].Dependencies.Location", index)
+			list := fmt.Sprintf("Context[%d].Dependencies.List", index)
+			contextInitialInputs := fmt.Sprintf("Context[%d].ContextInitialInputs", index)
+			environmentVariables := fmt.Sprintf("Context[%d].EnvironmentVariables", index)
 
-			setOverridableAndDefaultValOnProp(contextName, context.Context, yaml.Header.Name, *yamlProperties)
-			setOverridableAndDefaultValOnProp(location, context.Dependencies.Location, yaml.Header.Name, *yamlProperties)
-			setOverridableAndDefaultValOnProps(list, context.Dependencies.List, yaml.Header.Name, *yamlProperties)
-			setOverridableAndDefaultValOnProps(contextInitialInputs, context.ContextInitialInputs, yaml.Header.Name, *yamlProperties)
-			setOverridableAndDefaultValOnProps(environmentVariables, context.EnvironmentVariables, yaml.Header.Name, *yamlProperties)
+			yamlProperties = append(yamlProperties, generateProperty(contextName, context.Context, yaml.Header.Name))
+			yamlProperties = append(yamlProperties, generateProperty(location, context.Dependencies.Location, yaml.Header.Name))
+			yamlProperties = append(yamlProperties, generateArrayProperty(list, context.Dependencies.List, yaml.Header.Name))
+			yamlProperties = append(yamlProperties, generateArrayProperty(contextInitialInputs, context.ContextInitialInputs, yaml.Header.Name))
+			yamlProperties = append(yamlProperties, generateArrayProperty(environmentVariables, context.EnvironmentVariables, yaml.Header.Name))
 		}
 		for index, step := range yaml.Steps {
 
-			stepName := fmt.Sprintf("Step[%i].Name", index)
-			stepPointer := fmt.Sprintf("Step[%i].Pointer", index)
+			stepName := fmt.Sprintf("Step[%d].Name", index)
+			stepPointer := fmt.Sprintf("Step[%d].Pointer", index)
 
-			setOverridableAndDefaultValOnProp(stepName, step.Name, yaml.Header.Name, *yamlProperties)
-			setOverridableAndDefaultValOnProp(stepPointer, step.Pointer, yaml.Header.Name, *yamlProperties)
+			generateProperty(stepName, step.Name, yaml.Header.Name)
+			generateProperty(stepPointer, step.Pointer, yaml.Header.Name)
 		}
+
 	}
-	return *yamlProperties
+	return yamlProperties
 }
 
-func setOverridableAndDefaultValOnProp(name string, value string, templateName string, yamlProperties []YamlProperty) {
-	yamlProperty := YamlProperty{Name: name, Value: value}
-
+func generateProperty(name string, value string, templateName string) YamlProperty {
+	yamlProperty := YamlProperty{Name: name, Value: value, TemplateName: templateName}
 	if !strings.Contains(value, "$(overridable)") {
 		yamlProperty.Sealed = true
 	}
 	if strings.Contains(value, "default") {
 		yamlProperty.Default = true
 	}
-	yamlProperties = append(yamlProperties, yamlProperty)
+	return yamlProperty
 }
 
-func setOverridableAndDefaultValOnProps(name string, values []string, templateName string, yamlProperties []YamlProperty) {
-	yamlProperty := YamlProperty{Name: name, Values: values}
-
-	if !containsString(values, "$(overridable)") { // Corrected line
+func generateArrayProperty(name string, values []string, templateName string) YamlProperty {
+	yamlProperty := YamlProperty{Name: name, Values: values, TemplateName: templateName}
+	if !containsString(values, "$(overridable)") {
 		yamlProperty.Sealed = true
 	}
-	if containsString(values, "default") { // Corrected line
+	if containsString(values, "default") {
 		yamlProperty.Default = true
 	}
-	yamlProperties = append(yamlProperties, yamlProperty)
+	return yamlProperty
 }
 
 func containsString(slice []string, str string) bool {
@@ -150,10 +151,9 @@ func readYaml(filePath string) YamlFile {
 		log.Fatal(err)
 	}
 
-	//fmt.Printf("%+v\n", yamlFile)
+	fmt.Printf("%+v\n", yamlFile)
 
 	return yamlFile
-
 }
 
 // func interpretYaml(yaml YamlFile) {
