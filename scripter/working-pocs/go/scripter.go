@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"regexp"
 	"scripter/entities"
 	"strconv"
 	"strings"
@@ -20,25 +19,25 @@ func main() {
 		fmt.Printf("%+v\n", prop)
 	}
 
-	finalYaml := generateFinalYaml(generatedYamlProperties)
+	signal := generateFinalYaml(generatedYamlProperties)
 
-	fmt.Printf("%+v\n", finalYaml)
+	fmt.Printf("%+v\n", signal)
 }
 
-func generateFinalYaml(generatedYamlProperties []entities.YamlProperty) entities.YamlFile {
+func generateFinalYaml(generatedYamlProperties []entities.YamlProperty) entities.Signal {
 	sealedProperties := []string{}
-	finalYaml := entities.YamlFile{}
-	finalYaml.Header.Name = generatedYamlProperties[len(generatedYamlProperties)-1].TemplateName
+	signal := entities.Signal{}
+	signal.Sender = generatedYamlProperties[len(generatedYamlProperties)-1].TemplateName
 	for _, prop := range generatedYamlProperties {
 		if containsString(sealedProperties, prop.Name) {
 			continue
 		}
-		finalYaml = updateYamlBasedOnProp(finalYaml, prop)
+		signal = updateSignal(signal, prop)
 		if prop.Sealed {
 			sealedProperties = append(sealedProperties, prop.Name)
 		}
 	}
-	return finalYaml
+	return signal
 }
 
 func stringToBoolStrict(s string) bool {
@@ -49,68 +48,58 @@ func stringToBoolStrict(s string) bool {
 	return b
 }
 
-func updateYamlBasedOnProp(finalYaml entities.YamlFile, prop entities.YamlProperty) entities.YamlFile {
+func updateSignal(signal entities.Signal, prop entities.YamlProperty) entities.Signal {
 
 	if prop.Name == "Configuration.AgentOrLabel" && prop.Value != "" {
-		finalYaml.Configuration.AgentOrLabel = prop.Value
+		signal.Executor = prop.Value
 	}
 	if prop.Name == "Configuration.ContextName" && prop.Value != "" {
-		finalYaml.Configuration.ContextName = prop.Value
+		signal.Environment = prop.Value
 	}
 	if prop.Name == "Configuration.ExecutionMode" && prop.Value != "" {
-		finalYaml.Configuration.ExecutionMode = prop.Value
+		signal.ExecutionMode = prop.Value
 	}
 	if prop.Name == "Configuration.BypassSecurity" && prop.Value != "" {
-		finalYaml.Configuration.BypassSecurity = stringToBoolStrict(prop.Value)
+		signal.BypassSecurity = stringToBoolStrict(prop.Value)
 	}
-	if prop.Name == "Configuration.Security.CertificateLocation" && prop.Value != "" {
-		finalYaml.Configuration.Security.CertificateLocation = prop.Value
+	if prop.Name == "Configuration.Security.CertificationHub" && prop.Value != "" {
+		signal.CertificationHub = prop.Value
 	}
-	if prop.Name == "Configuration.Security.PrivatePasswordLocation" && prop.Value != "" {
-		finalYaml.Configuration.Security.PrivatePasswordLocation = prop.Value
+	if prop.Name == "Configuration.Security.AuthenticationHub" && prop.Value != "" {
+		signal.AuthenticationHub = prop.Value
 	}
-	if prop.Name == "Configuration.Security.PublicPassword" && prop.Value != "" {
-		finalYaml.Configuration.Security.PublicPassword = prop.Value
-	}
-	if prop.Name == "Configuration.Security.User" && prop.Value != "" {
-		finalYaml.Configuration.Security.User = prop.Value
-	}
-	if prop.Name == "Configuration.Security.TemplateOrSource" && prop.Value != "" {
-		finalYaml.Configuration.Security.TemplateOrSource = prop.Value
+	if prop.Name == "Configuration.Security.AuthorizationHub" && prop.Value != "" {
+		signal.AuthorizationHub = prop.Value
 	}
 	if prop.Name == "Action.Api" && prop.Value != "" {
-		finalYaml.Action.Api = prop.Value
+		signal.Api = prop.Value
 	}
 	if prop.Name == "Action.NameOrFullPath" && prop.Value != "" {
-		finalYaml.Action.NameOrFullPath = prop.Value
+		signal.ExecutablePath = prop.Value
 	}
 	if prop.Name == "Action.Type" && prop.Value != "" {
-		finalYaml.Action.Type = prop.Value
+		signal.Type = prop.Value
 	}
 	if prop.Name == "Action.OutputMode" && prop.Value != "" {
-		finalYaml.Action.OutputMode = prop.Value
+		signal.OutputMode = prop.Value
 	}
 	if prop.Name == "Action.ShutdownSignal" && prop.Value != "" {
-		finalYaml.Action.ShutdownSignal = prop.Value
+		signal.ShutdownSignal = prop.Value
 	}
 	if prop.Name == "Action.Platform.OsFamily" && prop.Value != "" {
-		finalYaml.Action.Platform.OsFamily = prop.Value
+		signal.Os = prop.Value
 	}
 	if prop.Name == "Action.Platform.PackageInstaller" && prop.Value != "" {
-		finalYaml.Action.Platform.PackageInstaller = prop.Value
+		signal.PackageInstaller = prop.Value
 	}
 	if prop.Name == "Action.Platform.ExecutionDependencies" && prop.Values != nil {
-		finalYaml.Action.Platform.ExecutionDependencies = prop.Values
+		signal.InstallationDependencies = prop.Values
 	}
 	if prop.Name == "Action.InitialInputs" && prop.Value != "" {
-		finalYaml.Action.InitialInputs = prop.Values
+		signal.Arguments = prop.Values
 	}
 
-	if finalYaml.Contexts == nil {
-
-	}
-
-	contextContextPattern := `^Context\[\d]\.Context$`
+	/*contextContextPattern := `^Context\[\d]\.Context$`
 
 	re := regexp.MustCompile(contextContextPattern)
 
@@ -121,7 +110,7 @@ func updateYamlBasedOnProp(finalYaml entities.YamlFile, prop entities.YamlProper
 		_, err := strconv.Atoi(substring)
 
 		if err == nil {
-			finalYaml.Contexts = append(finalYaml.Contexts, struct {
+			signal.Contexts = append(signal.Contexts, struct {
 				Context      string `yaml:"context"`
 				Dependencies struct {
 					Location string   `yaml:"location"`
@@ -142,9 +131,9 @@ func updateYamlBasedOnProp(finalYaml entities.YamlFile, prop entities.YamlProper
 				EnvironmentVariables: []string{"ENV=test"},
 			})
 		}
-	}
+	}*/
 
-	return finalYaml
+	return signal
 }
 
 func filterBy(values []string, filter string) []string {
@@ -175,11 +164,9 @@ func generateYamlProperties(yamls []entities.YamlFile) []entities.YamlProperty {
 		yamlProperties = append(yamlProperties, generateProperty("Configuration.ContextName", yaml.Configuration.ContextName, yaml.Header.Name))
 		yamlProperties = append(yamlProperties, generateProperty("Configuration.ExecutionMode", yaml.Configuration.ExecutionMode, yaml.Header.Name))
 		yamlProperties = append(yamlProperties, generateProperty("Configuration.BypassSecurity", strconv.FormatBool(yaml.Configuration.BypassSecurity), yaml.Header.Name))
-		yamlProperties = append(yamlProperties, generateProperty("Configuration.Security.CertificateLocation", yaml.Configuration.Security.CertificateLocation, yaml.Header.Name))
-		yamlProperties = append(yamlProperties, generateProperty("Configuration.Security.PrivatePasswordLocation", yaml.Configuration.Security.PrivatePasswordLocation, yaml.Header.Name))
-		yamlProperties = append(yamlProperties, generateProperty("Configuration.Security.PublicPassword", yaml.Configuration.Security.PublicPassword, yaml.Header.Name))
-		yamlProperties = append(yamlProperties, generateProperty("Configuration.Security.User", yaml.Configuration.Security.User, yaml.Header.Name))
-		yamlProperties = append(yamlProperties, generateProperty("Configuration.Security.TemplateOrSource", yaml.Configuration.Security.TemplateOrSource, yaml.Header.Name))
+		yamlProperties = append(yamlProperties, generateProperty("Configuration.Security.CertificationHub", yaml.Configuration.Security.CertificationHub, yaml.Header.Name))
+		yamlProperties = append(yamlProperties, generateProperty("Configuration.Security.AuthenticationHub", yaml.Configuration.Security.AuthenticationHub, yaml.Header.Name))
+		yamlProperties = append(yamlProperties, generateProperty("Configuration.Security.AuthorizationHub", yaml.Configuration.Security.AuthorizationHub, yaml.Header.Name))
 
 		yamlProperties = append(yamlProperties, generateProperty("Action.Api", yaml.Action.Api, yaml.Header.Name))
 		yamlProperties = append(yamlProperties, generateProperty("Action.NameOrFullPath", yaml.Action.NameOrFullPath, yaml.Header.Name))
@@ -188,7 +175,7 @@ func generateYamlProperties(yamls []entities.YamlFile) []entities.YamlProperty {
 		yamlProperties = append(yamlProperties, generateProperty("Action.ShutdownSignal", yaml.Action.ShutdownSignal, yaml.Header.Name))
 		yamlProperties = append(yamlProperties, generateProperty("Action.Platform.OsFamily", yaml.Action.Platform.OsFamily, yaml.Header.Name))
 		yamlProperties = append(yamlProperties, generateProperty("Action.Platform.PackageInstaller", yaml.Action.Platform.PackageInstaller, yaml.Header.Name))
-		yamlProperties = append(yamlProperties, generateArrayProperty("Action.Platform.ExecutionDependencies", yaml.Action.Platform.ExecutionDependencies, yaml.Header.Name))
+		yamlProperties = append(yamlProperties, generateArrayProperty("Action.Platform.ExecutionDependencies", yaml.Action.Platform.InstallationDependencies, yaml.Header.Name))
 		yamlProperties = append(yamlProperties, generateArrayProperty("Action.InitialInputs", yaml.Action.InitialInputs, yaml.Header.Name))
 
 		for index, context := range yaml.Contexts {

@@ -11,11 +11,9 @@ type YamlFile struct {
 		ExecutionMode  string `yaml:"execution-mode"`
 		BypassSecurity bool   `yaml:"bypass-security"`
 		Security       struct {
-			User                    string `yaml:"user"`
-			PublicPassword          string `yaml:"public-password"`
-			PrivatePasswordLocation string `yaml:"private-password-location"`
-			CertificateLocation     string `yaml:"certificate-location"`
-			TemplateOrSource        string `yaml:"template-or-source"`
+			AuthenticationHub string `yaml:"authentication-hub"`
+			AuthorizationHub  string `yaml:"authorization-hub"`
+			CertificationHub  string `yaml:"certification-hub"`
 		} `yaml:"security"`
 		ContextName string `yaml:"context-name"`
 	} `yaml:"configuration"`
@@ -28,9 +26,9 @@ type YamlFile struct {
 		InitialInputs  []string `yaml:"initial-inputs"` //If a specific context is defined and used, inputs should
 		//be defined there instead
 		Platform struct {
-			OsFamily              string   `yaml:"os-family"`
-			PackageInstaller      string   `yaml:"package-installer"`
-			ExecutionDependencies []string `yaml:"execution-dependencies"`
+			OsFamily                 string   `yaml:"os-family"`
+			PackageInstaller         string   `yaml:"package-installer"`
+			InstallationDependencies []string `yaml:"installation-dependencies"`
 		}
 	} `yaml:"action"`
 	Contexts []struct {
