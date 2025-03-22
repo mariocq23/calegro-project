@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"regexp"
+	"scripter/entities"
 	"strconv"
 	"strings"
 
@@ -14,23 +16,158 @@ func main() {
 	filePath := os.Args[1]
 	yamls := readAllYamls(filePath)
 	generatedYamlProperties := generateYamlProperties(reverseYamlArray(yamls))
-
 	for _, prop := range generatedYamlProperties {
 		fmt.Printf("%+v\n", prop)
 	}
+
+	finalYaml := generateFinalYaml(generatedYamlProperties)
+
+	fmt.Printf("%+v\n", finalYaml)
 }
 
-func reverseYamlArray(yamls []YamlFile) []YamlFile {
-	reversed := make([]YamlFile, len(yamls))
+func generateFinalYaml(generatedYamlProperties []entities.YamlProperty) entities.YamlFile {
+	sealedProperties := []string{}
+	finalYaml := entities.YamlFile{}
+	finalYaml.Header.Name = generatedYamlProperties[len(generatedYamlProperties)-1].TemplateName
+	for _, prop := range generatedYamlProperties {
+		if containsString(sealedProperties, prop.Name) {
+			continue
+		}
+		finalYaml = updateYamlBasedOnProp(finalYaml, prop)
+		if prop.Sealed {
+			sealedProperties = append(sealedProperties, prop.Name)
+		}
+	}
+	return finalYaml
+}
+
+func stringToBoolStrict(s string) bool {
+	b, err := strconv.ParseBool(strings.ToLower(s))
+	if err != nil {
+		return false // Return false on error
+	}
+	return b
+}
+
+func updateYamlBasedOnProp(finalYaml entities.YamlFile, prop entities.YamlProperty) entities.YamlFile {
+
+	if prop.Name == "Configuration.AgentOrLabel" && prop.Value != "" {
+		finalYaml.Configuration.AgentOrLabel = prop.Value
+	}
+	if prop.Name == "Configuration.ContextName" && prop.Value != "" {
+		finalYaml.Configuration.ContextName = prop.Value
+	}
+	if prop.Name == "Configuration.ExecutionMode" && prop.Value != "" {
+		finalYaml.Configuration.ExecutionMode = prop.Value
+	}
+	if prop.Name == "Configuration.BypassSecurity" && prop.Value != "" {
+		finalYaml.Configuration.BypassSecurity = stringToBoolStrict(prop.Value)
+	}
+	if prop.Name == "Configuration.Security.CertificateLocation" && prop.Value != "" {
+		finalYaml.Configuration.Security.CertificateLocation = prop.Value
+	}
+	if prop.Name == "Configuration.Security.PrivatePasswordLocation" && prop.Value != "" {
+		finalYaml.Configuration.Security.PrivatePasswordLocation = prop.Value
+	}
+	if prop.Name == "Configuration.Security.PublicPassword" && prop.Value != "" {
+		finalYaml.Configuration.Security.PublicPassword = prop.Value
+	}
+	if prop.Name == "Configuration.Security.User" && prop.Value != "" {
+		finalYaml.Configuration.Security.User = prop.Value
+	}
+	if prop.Name == "Configuration.Security.TemplateOrSource" && prop.Value != "" {
+		finalYaml.Configuration.Security.TemplateOrSource = prop.Value
+	}
+	if prop.Name == "Action.Api" && prop.Value != "" {
+		finalYaml.Action.Api = prop.Value
+	}
+	if prop.Name == "Action.NameOrFullPath" && prop.Value != "" {
+		finalYaml.Action.NameOrFullPath = prop.Value
+	}
+	if prop.Name == "Action.Type" && prop.Value != "" {
+		finalYaml.Action.Type = prop.Value
+	}
+	if prop.Name == "Action.OutputMode" && prop.Value != "" {
+		finalYaml.Action.OutputMode = prop.Value
+	}
+	if prop.Name == "Action.ShutdownSignal" && prop.Value != "" {
+		finalYaml.Action.ShutdownSignal = prop.Value
+	}
+	if prop.Name == "Action.Platform.OsFamily" && prop.Value != "" {
+		finalYaml.Action.Platform.OsFamily = prop.Value
+	}
+	if prop.Name == "Action.Platform.PackageInstaller" && prop.Value != "" {
+		finalYaml.Action.Platform.PackageInstaller = prop.Value
+	}
+	if prop.Name == "Action.Platform.ExecutionDependencies" && prop.Values != nil {
+		finalYaml.Action.Platform.ExecutionDependencies = prop.Values
+	}
+	if prop.Name == "Action.InitialInputs" && prop.Value != "" {
+		finalYaml.Action.InitialInputs = prop.Values
+	}
+
+	if finalYaml.Contexts == nil {
+
+	}
+
+	contextContextPattern := `^Context\[\d]\.Context$`
+
+	re := regexp.MustCompile(contextContextPattern)
+
+	if re.MatchString(prop.Name) && prop.Value != "" {
+		startIndex := strings.Index(prop.Name, "[")
+		endIndex := strings.Index(prop.Name, "]")
+		substring := prop.Name[startIndex+1 : endIndex]
+		_, err := strconv.Atoi(substring)
+
+		if err == nil {
+			finalYaml.Contexts = append(finalYaml.Contexts, struct {
+				Context      string `yaml:"context"`
+				Dependencies struct {
+					Location string   `yaml:"location"`
+					List     []string `yaml:"list"`
+				} `yaml:"dependencies"`
+				ContextInitialInputs []string `yaml:"context-initial-inputs"`
+				EnvironmentVariables []string `yaml:"environment-variables"`
+			}{
+				Context: prop.Name,
+				Dependencies: struct {
+					Location string   `yaml:"location"`
+					List     []string `yaml:"list"`
+				}{
+					Location: "remote",
+					List:     []string{"junit"},
+				},
+				ContextInitialInputs: []string{"./tests"},
+				EnvironmentVariables: []string{"ENV=test"},
+			})
+		}
+	}
+
+	return finalYaml
+}
+
+func filterBy(values []string, filter string) []string {
+	var filtered []string
+	for _, s := range values {
+		if strings.HasPrefix(s, filter) {
+			filtered = append(filtered, s)
+		}
+	}
+	return filtered
+}
+
+func reverseYamlArray(yamls []entities.YamlFile) []entities.YamlFile {
+	reversed := make([]entities.YamlFile, len(yamls))
 	for i, j := 0, len(yamls)-1; i < len(yamls); i, j = i+1, j-1 {
 		reversed[i] = yamls[j]
 	}
 	return reversed
 }
 
-func generateYamlProperties(yamls []YamlFile) []YamlProperty {
+func generateYamlProperties(yamls []entities.YamlFile) []entities.YamlProperty {
 
-	yamlProperties := []YamlProperty{}
+	yamlProperties := []entities.YamlProperty{}
 
 	for _, yaml := range yamls {
 
@@ -73,7 +210,7 @@ func generateYamlProperties(yamls []YamlFile) []YamlProperty {
 			stepName := fmt.Sprintf("Step[%d].Name", index)
 			stepPointer := fmt.Sprintf("Step[%d].Pointer", index)
 
-			generateProperty(stepName, step.Name, yaml.Header.Name)
+			generateProperty(stepName, step.Step, yaml.Header.Name)
 			generateProperty(stepPointer, step.Pointer, yaml.Header.Name)
 		}
 
@@ -81,8 +218,8 @@ func generateYamlProperties(yamls []YamlFile) []YamlProperty {
 	return yamlProperties
 }
 
-func generateProperty(name string, value string, templateName string) YamlProperty {
-	yamlProperty := YamlProperty{Name: name, Value: value, TemplateName: templateName}
+func generateProperty(name string, value string, templateName string) entities.YamlProperty {
+	yamlProperty := entities.YamlProperty{Name: name, Value: value, TemplateName: templateName}
 	if !strings.Contains(value, "$(overridable)") {
 		yamlProperty.Sealed = true
 	}
@@ -92,8 +229,8 @@ func generateProperty(name string, value string, templateName string) YamlProper
 	return yamlProperty
 }
 
-func generateArrayProperty(name string, values []string, templateName string) YamlProperty {
-	yamlProperty := YamlProperty{Name: name, Values: values, TemplateName: templateName}
+func generateArrayProperty(name string, values []string, templateName string) entities.YamlProperty {
+	yamlProperty := entities.YamlProperty{Name: name, Values: values, TemplateName: templateName}
 	if !containsString(values, "$(overridable)") {
 		yamlProperty.Sealed = true
 	}
@@ -112,9 +249,9 @@ func containsString(slice []string, str string) bool {
 	return false
 }
 
-func readAllYamls(path string) []YamlFile {
+func readAllYamls(path string) []entities.YamlFile {
 
-	yamlsArray := make([]YamlFile, 0)
+	yamlsArray := make([]entities.YamlFile, 0)
 
 	yaml := readYaml(path)
 
@@ -122,7 +259,7 @@ func readAllYamls(path string) []YamlFile {
 
 	if strings.TrimSpace(yaml.Header.Inherits) != "" {
 		parentPath, parentName := extractBeforeAndAfterValues(yaml.Header.Import)
-		importInherit := ImportInherit{ParentPath: parentPath, ParentName: parentName}
+		importInherit := entities.ImportInherit{ParentPath: parentPath, ParentName: parentName}
 		newYamlArray := readAllYamls(importInherit.ParentPath)
 		yamlsArray = append(yamlsArray, newYamlArray...)
 	}
@@ -139,13 +276,13 @@ func extractBeforeAndAfterValues(input string) (string, string) {
 	return "", "" // Return empty strings if the split doesn't produce two parts
 }
 
-func readYaml(filePath string) YamlFile {
+func readYaml(filePath string) entities.YamlFile {
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	var yamlFile YamlFile
+	var yamlFile entities.YamlFile
 	err = yaml.Unmarshal(data, &yamlFile)
 	if err != nil {
 		log.Fatal(err)

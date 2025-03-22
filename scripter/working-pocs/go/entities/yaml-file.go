@@ -1,4 +1,4 @@
-package main
+package entities
 
 type YamlFile struct {
 	Header struct {
@@ -43,7 +43,7 @@ type YamlFile struct {
 		EnvironmentVariables []string `yaml:"environment-variables"`
 	} `yaml:"contexts"`
 	Steps []struct {
-		Name    string `yaml:"name"`
+		Step    string `yaml:"step"`
 		Pointer string `yaml:"pointer"`
 	} `yaml:"steps"`
 }
