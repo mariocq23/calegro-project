@@ -25,6 +25,8 @@ type YamlFile struct {
 		ShutdownSignal string   `yaml:"shutdown-signal"`
 		InitialInputs  []string `yaml:"initial-inputs"` //If a specific context is defined and used, inputs should
 		//be defined there instead
+		EnvironmentVariables []string `yaml:"environment-variables"` //If a specific context is defined and used, inputs should
+		//be defined there instead
 		Platform struct {
 			OsFamily                 string   `yaml:"os-family"`
 			PackageInstaller         string   `yaml:"package-installer"`

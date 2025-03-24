@@ -48,55 +48,74 @@ func stringToBoolStrict(s string) bool {
 	return b
 }
 
+func removeUnnecessaryString(rawString string) string {
+	finalValue := strings.ReplaceAll(rawString, "$(overridable)", "")
+
+	finalValue = strings.TrimSpace(finalValue)
+
+	return finalValue
+}
+
+func removeUnnecessaryStringInArray(values []string) []string {
+	var result []string
+	for _, s := range values {
+		if s != "$(overridable)" {
+			cleanedString := strings.TrimSpace(s)
+			result = append(result, cleanedString)
+		}
+	}
+	return result
+}
+
 func updateSignal(signal entities.Signal, prop entities.YamlProperty) entities.Signal {
 
 	if prop.Name == "Configuration.AgentOrLabel" && prop.Value != "" {
-		signal.Executor = prop.Value
+		signal.Executor = removeUnnecessaryString(prop.Value)
 	}
 	if prop.Name == "Configuration.ContextName" && prop.Value != "" {
-		signal.Environment = prop.Value
+		signal.Environment = removeUnnecessaryString(prop.Value)
 	}
 	if prop.Name == "Configuration.ExecutionMode" && prop.Value != "" {
-		signal.ExecutionMode = prop.Value
+		signal.ExecutionMode = removeUnnecessaryString(prop.Value)
 	}
 	if prop.Name == "Configuration.BypassSecurity" && prop.Value != "" {
-		signal.BypassSecurity = stringToBoolStrict(prop.Value)
+		signal.BypassSecurity = stringToBoolStrict(removeUnnecessaryString(prop.Value))
 	}
 	if prop.Name == "Configuration.Security.CertificationHub" && prop.Value != "" {
-		signal.CertificationHub = prop.Value
+		signal.CertificationHub = removeUnnecessaryString(prop.Value)
 	}
 	if prop.Name == "Configuration.Security.AuthenticationHub" && prop.Value != "" {
-		signal.AuthenticationHub = prop.Value
+		signal.AuthenticationHub = removeUnnecessaryString(prop.Value)
 	}
 	if prop.Name == "Configuration.Security.AuthorizationHub" && prop.Value != "" {
-		signal.AuthorizationHub = prop.Value
+		signal.AuthorizationHub = removeUnnecessaryString(prop.Value)
 	}
 	if prop.Name == "Action.Api" && prop.Value != "" {
-		signal.Api = prop.Value
+		signal.Api = removeUnnecessaryString(prop.Value)
 	}
 	if prop.Name == "Action.NameOrFullPath" && prop.Value != "" {
-		signal.ExecutablePath = prop.Value
+		signal.ExecutablePath = removeUnnecessaryString(prop.Value)
 	}
 	if prop.Name == "Action.Type" && prop.Value != "" {
-		signal.Type = prop.Value
+		signal.Type = removeUnnecessaryString(prop.Value)
 	}
 	if prop.Name == "Action.OutputMode" && prop.Value != "" {
-		signal.OutputMode = prop.Value
+		signal.OutputMode = removeUnnecessaryString(prop.Value)
 	}
 	if prop.Name == "Action.ShutdownSignal" && prop.Value != "" {
-		signal.ShutdownSignal = prop.Value
+		signal.ShutdownSignal = removeUnnecessaryString(prop.Value)
 	}
 	if prop.Name == "Action.Platform.OsFamily" && prop.Value != "" {
-		signal.Os = prop.Value
+		signal.Os = removeUnnecessaryString(prop.Value)
 	}
 	if prop.Name == "Action.Platform.PackageInstaller" && prop.Value != "" {
-		signal.PackageInstaller = prop.Value
+		signal.PackageInstaller = removeUnnecessaryString(prop.Value)
 	}
-	if prop.Name == "Action.Platform.ExecutionDependencies" && prop.Values != nil {
-		signal.InstallationDependencies = prop.Values
+	if prop.Name == "Action.Platform.ExecutionDependencies" && prop.Values != nil && len(prop.Values) > 0 {
+		signal.InstallationDependencies = removeUnnecessaryStringInArray(prop.Values)
 	}
-	if prop.Name == "Action.InitialInputs" && prop.Value != "" {
-		signal.Arguments = prop.Values
+	if prop.Name == "Action.InitialInputs" && prop.Values != nil && len(prop.Values) > 0 {
+		signal.Arguments = removeUnnecessaryStringInArray(prop.Values)
 	}
 
 	/*contextContextPattern := `^Context\[\d]\.Context$`
@@ -197,8 +216,8 @@ func generateYamlProperties(yamls []entities.YamlFile) []entities.YamlProperty {
 			stepName := fmt.Sprintf("Step[%d].Name", index)
 			stepPointer := fmt.Sprintf("Step[%d].Pointer", index)
 
-			generateProperty(stepName, step.Step, yaml.Header.Name)
-			generateProperty(stepPointer, step.Pointer, yaml.Header.Name)
+			yamlProperties = append(yamlProperties, generateProperty(stepName, step.Step, yaml.Header.Name))
+			yamlProperties = append(yamlProperties, generateProperty(stepPointer, step.Pointer, yaml.Header.Name))
 		}
 
 	}

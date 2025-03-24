@@ -25,4 +25,6 @@ type Signal struct {
 	Environment              string
 	EnvironmentVariables     []string
 	Steps                    []SignalStep
+	OriginatorQuay           OriginatorQuay
+	EmitQuays                []EmitQuay
 }
