@@ -19,12 +19,12 @@ func main() {
 		fmt.Printf("%+v\n", prop)
 	}
 
-	signal := generateFinalYaml(generatedYamlProperties)
+	signal := generateSignal(generatedYamlProperties)
 
 	fmt.Printf("%+v\n", signal)
 }
 
-func generateFinalYaml(generatedYamlProperties []entities.YamlProperty) entities.Signal {
+func generateSignal(generatedYamlProperties []entities.YamlProperty) entities.Signal {
 	sealedProperties := []string{}
 	signal := entities.Signal{}
 	signal.Sender = generatedYamlProperties[len(generatedYamlProperties)-1].TemplateName
@@ -117,40 +117,9 @@ func updateSignal(signal entities.Signal, prop entities.YamlProperty) entities.S
 	if prop.Name == "Action.InitialInputs" && prop.Values != nil && len(prop.Values) > 0 {
 		signal.Arguments = removeUnnecessaryStringInArray(prop.Values)
 	}
-
-	/*contextContextPattern := `^Context\[\d]\.Context$`
-
-	re := regexp.MustCompile(contextContextPattern)
-
-	if re.MatchString(prop.Name) && prop.Value != "" {
-		startIndex := strings.Index(prop.Name, "[")
-		endIndex := strings.Index(prop.Name, "]")
-		substring := prop.Name[startIndex+1 : endIndex]
-		_, err := strconv.Atoi(substring)
-
-		if err == nil {
-			signal.Contexts = append(signal.Contexts, struct {
-				Context      string `yaml:"context"`
-				Dependencies struct {
-					Location string   `yaml:"location"`
-					List     []string `yaml:"list"`
-				} `yaml:"dependencies"`
-				ContextInitialInputs []string `yaml:"context-initial-inputs"`
-				EnvironmentVariables []string `yaml:"environment-variables"`
-			}{
-				Context: prop.Name,
-				Dependencies: struct {
-					Location string   `yaml:"location"`
-					List     []string `yaml:"list"`
-				}{
-					Location: "remote",
-					List:     []string{"junit"},
-				},
-				ContextInitialInputs: []string{"./tests"},
-				EnvironmentVariables: []string{"ENV=test"},
-			})
-		}
-	}*/
+	if prop.Name == "Action.EnvironmentVariables" && prop.Values != nil && len(prop.Values) > 0 {
+		signal.EnvironmentVariables = removeUnnecessaryStringInArray(prop.Values)
+	}
 
 	return signal
 }
@@ -198,26 +167,15 @@ func generateYamlProperties(yamls []entities.YamlFile) []entities.YamlProperty {
 		yamlProperties = append(yamlProperties, generateArrayProperty("Action.InitialInputs", yaml.Action.InitialInputs, yaml.Header.Name))
 
 		for index, context := range yaml.Contexts {
-
-			contextName := fmt.Sprintf("Context[%d].Context", index)
-			location := fmt.Sprintf("Context[%d].Dependencies.Location", index)
-			list := fmt.Sprintf("Context[%d].Dependencies.List", index)
-			contextInitialInputs := fmt.Sprintf("Context[%d].ContextInitialInputs", index)
-			environmentVariables := fmt.Sprintf("Context[%d].EnvironmentVariables", index)
-
-			yamlProperties = append(yamlProperties, generateProperty(contextName, context.Context, yaml.Header.Name))
-			yamlProperties = append(yamlProperties, generateProperty(location, context.Dependencies.Location, yaml.Header.Name))
-			yamlProperties = append(yamlProperties, generateArrayProperty(list, context.Dependencies.List, yaml.Header.Name))
-			yamlProperties = append(yamlProperties, generateArrayProperty(contextInitialInputs, context.ContextInitialInputs, yaml.Header.Name))
-			yamlProperties = append(yamlProperties, generateArrayProperty(environmentVariables, context.EnvironmentVariables, yaml.Header.Name))
+			yamlProperties = append(yamlProperties, generatePropertyWithPosition("Context.Context", context.Context, yaml.Header.Name, index))
+			yamlProperties = append(yamlProperties, generatePropertyWithPosition("Context.Dependencies.Location", context.Dependencies.Location, yaml.Header.Name, index))
+			yamlProperties = append(yamlProperties, generateArrayPropertyWithPosition("Context.Dependencies.List", context.Dependencies.List, yaml.Header.Name, index))
+			yamlProperties = append(yamlProperties, generateArrayPropertyWithPosition("Context.ContextInitialInputs", context.ContextInitialInputs, yaml.Header.Name, index))
+			yamlProperties = append(yamlProperties, generateArrayPropertyWithPosition("Context.EnvironmentVariables", context.EnvironmentVariables, yaml.Header.Name, index))
 		}
 		for index, step := range yaml.Steps {
-
-			stepName := fmt.Sprintf("Step[%d].Name", index)
-			stepPointer := fmt.Sprintf("Step[%d].Pointer", index)
-
-			yamlProperties = append(yamlProperties, generateProperty(stepName, step.Step, yaml.Header.Name))
-			yamlProperties = append(yamlProperties, generateProperty(stepPointer, step.Pointer, yaml.Header.Name))
+			yamlProperties = append(yamlProperties, generatePropertyWithPosition("Step.Name", step.Step, yaml.Header.Name, index))
+			yamlProperties = append(yamlProperties, generatePropertyWithPosition("Step.Pointer", step.Pointer, yaml.Header.Name, index))
 		}
 
 	}
@@ -230,6 +188,30 @@ func generateProperty(name string, value string, templateName string) entities.Y
 		yamlProperty.Sealed = true
 	}
 	if strings.Contains(value, "default") {
+		yamlProperty.Default = true
+	}
+	return yamlProperty
+}
+
+func generatePropertyWithPosition(name string, value string, templateName string, position int) entities.YamlProperty {
+	yamlProperty := entities.YamlProperty{Name: name, Value: value, TemplateName: templateName, Position: position}
+
+	if !strings.Contains(value, "$(overridable)") {
+		yamlProperty.Sealed = true
+	}
+	if strings.Contains(value, "default") {
+		yamlProperty.Default = true
+	}
+	return yamlProperty
+}
+
+func generateArrayPropertyWithPosition(name string, values []string, templateName string, position int) entities.YamlProperty {
+	yamlProperty := entities.YamlProperty{Name: name, Values: values, TemplateName: templateName, Position: position}
+
+	if !containsString(values, "$(overridable)") {
+		yamlProperty.Sealed = true
+	}
+	if containsString(values, "default") {
 		yamlProperty.Default = true
 	}
 	return yamlProperty

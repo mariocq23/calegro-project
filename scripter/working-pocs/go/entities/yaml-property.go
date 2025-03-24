@@ -7,4 +7,5 @@ type YamlProperty struct {
 	Value        string
 	Values       []string
 	TemplateName string
+	Position     int
 }
