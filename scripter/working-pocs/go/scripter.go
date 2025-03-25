@@ -111,7 +111,7 @@ func updateSignal(signal entities.Signal, prop entities.YamlProperty) entities.S
 	if prop.Name == "Action.Platform.PackageInstaller" && prop.Value != "" {
 		signal.PackageInstaller = removeUnnecessaryString(prop.Value)
 	}
-	if prop.Name == "Action.Platform.ExecutionDependencies" && prop.Values != nil && len(prop.Values) > 0 {
+	if prop.Name == "Action.Platform.InstallationDependencies" && prop.Values != nil && len(prop.Values) > 0 {
 		signal.InstallationDependencies = removeUnnecessaryStringInArray(prop.Values)
 	}
 	if prop.Name == "Action.InitialInputs" && prop.Values != nil && len(prop.Values) > 0 {
@@ -163,7 +163,7 @@ func generateYamlProperties(yamls []entities.YamlFile) []entities.YamlProperty {
 		yamlProperties = append(yamlProperties, generateProperty("Action.ShutdownSignal", yaml.Action.ShutdownSignal, yaml.Header.Name))
 		yamlProperties = append(yamlProperties, generateProperty("Action.Platform.OsFamily", yaml.Action.Platform.OsFamily, yaml.Header.Name))
 		yamlProperties = append(yamlProperties, generateProperty("Action.Platform.PackageInstaller", yaml.Action.Platform.PackageInstaller, yaml.Header.Name))
-		yamlProperties = append(yamlProperties, generateArrayProperty("Action.Platform.ExecutionDependencies", yaml.Action.Platform.InstallationDependencies, yaml.Header.Name))
+		yamlProperties = append(yamlProperties, generateArrayProperty("Action.Platform.InstallationDependencies", yaml.Action.Platform.InstallationDependencies, yaml.Header.Name))
 		yamlProperties = append(yamlProperties, generateArrayProperty("Action.InitialInputs", yaml.Action.InitialInputs, yaml.Header.Name))
 
 		for index, context := range yaml.Contexts {
@@ -183,8 +183,8 @@ func generateYamlProperties(yamls []entities.YamlFile) []entities.YamlProperty {
 }
 
 func generateProperty(name string, value string, templateName string) entities.YamlProperty {
-	yamlProperty := entities.YamlProperty{Name: name, Value: value, TemplateName: templateName}
-	if !strings.Contains(value, "$(overridable)") {
+	yamlProperty := entities.YamlProperty{Name: name, Value: value, TemplateName: templateName, Position: -1}
+	if !strings.Contains(value, "$(overridable)") && value != "" {
 		yamlProperty.Sealed = true
 	}
 	if strings.Contains(value, "default") {
@@ -196,7 +196,7 @@ func generateProperty(name string, value string, templateName string) entities.Y
 func generatePropertyWithPosition(name string, value string, templateName string, position int) entities.YamlProperty {
 	yamlProperty := entities.YamlProperty{Name: name, Value: value, TemplateName: templateName, Position: position}
 
-	if !strings.Contains(value, "$(overridable)") {
+	if !strings.Contains(value, "$(overridable)") && value != "" {
 		yamlProperty.Sealed = true
 	}
 	if strings.Contains(value, "default") {
@@ -208,7 +208,7 @@ func generatePropertyWithPosition(name string, value string, templateName string
 func generateArrayPropertyWithPosition(name string, values []string, templateName string, position int) entities.YamlProperty {
 	yamlProperty := entities.YamlProperty{Name: name, Values: values, TemplateName: templateName, Position: position}
 
-	if !containsString(values, "$(overridable)") {
+	if !containsString(values, "$(overridable)") && values != nil && len(values) > 0 {
 		yamlProperty.Sealed = true
 	}
 	if containsString(values, "default") {
@@ -218,8 +218,8 @@ func generateArrayPropertyWithPosition(name string, values []string, templateNam
 }
 
 func generateArrayProperty(name string, values []string, templateName string) entities.YamlProperty {
-	yamlProperty := entities.YamlProperty{Name: name, Values: values, TemplateName: templateName}
-	if !containsString(values, "$(overridable)") {
+	yamlProperty := entities.YamlProperty{Name: name, Values: values, TemplateName: templateName, Position: -1}
+	if !containsString(values, "$(overridable)") && values != nil && len(values) > 0 {
 		yamlProperty.Sealed = true
 	}
 	if containsString(values, "default") {
