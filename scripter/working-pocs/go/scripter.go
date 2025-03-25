@@ -14,23 +14,26 @@ import (
 func main() {
 	filePath := os.Args[1]
 	yamls := readAllYamls(filePath)
-	generalProperties, contextProperties, stepProperties := generateYamlProperties(reverseYamlArray(yamls))
+	for _, yaml := range yamls {
+		fmt.Printf("%+v\n", yaml)
+	}
+	generalProperties, contextProperties, signalSteps := generateYamlProperties(reverseYamlArray(yamls))
 	for _, prop := range generalProperties {
 		fmt.Printf("%+v\n", prop)
 	}
 	for _, prop := range contextProperties {
 		fmt.Printf("%+v\n", prop)
 	}
-	for _, prop := range stepProperties {
+	for _, prop := range signalSteps {
 		fmt.Printf("%+v\n", prop)
 	}
 
-	signal := generateSignal(generatedYamlProperties)
+	signal := generateSignal(generalProperties, signalSteps)
 
 	fmt.Printf("%+v\n", signal)
 }
 
-func generateSignal(generalProperties []entities.YamlProperty, contextProperties []entities.YamlContextProperty, stepProperties []entities.YamlStepProperty) entities.Signal {
+func generateSignal(generalProperties []entities.YamlProperty, steps []entities.SignalStep) entities.Signal {
 	sealedProperties := []string{}
 	signal := entities.Signal{}
 	signal.Sender = generalProperties[len(generalProperties)-1].TemplateName
@@ -43,35 +46,10 @@ func generateSignal(generalProperties []entities.YamlProperty, contextProperties
 			sealedProperties = append(sealedProperties, prop.Name)
 		}
 	}
-	for _, prop := range contextProperties {
-		if containsString(sealedProperties, prop.Name) {
-			continue
-		}
-		signal = updateSignalEnvironment(signal, prop)
-		if prop.Sealed {
-			sealedProperties = append(sealedProperties, prop.Name)
-		}
-	}
-	for _, prop := range stepProperties {
-		if containsString(sealedProperties, prop.Name) {
-			continue
-		}
-		signal = updateSignalSteps(signal, prop)
-		if prop.Sealed {
-			sealedProperties = append(sealedProperties, prop.Name)
-		}
-	}
+
+	signal.Steps = steps
+
 	return signal
-}
-
-func updateSignalSteps(signal entities.Signal, prop entities.YamlStepProperty) entities.Signal {
-	panic("unimplemented")
-}
-
-func updateSignalEnvironment(signal entities.Signal, prop entities.YamlContextProperty) entities.Signal {
-	if signal.Environment != "" && signal.Environment != "default" {
-
-	}
 }
 
 func stringToBoolStrict(s string) bool {
@@ -168,19 +146,21 @@ func filterBy(values []string, filter string) []string {
 	return filtered
 }
 
-func reverseYamlArray(yamls []entities.YamlFile) []entities.YamlFile {
-	reversed := make([]entities.YamlFile, len(yamls))
+func reverseYamlArray(yamls []*entities.YamlFile) []*entities.YamlFile {
+	reversed := make([]*entities.YamlFile, len(yamls))
 	for i, j := 0, len(yamls)-1; i < len(yamls); i, j = i+1, j-1 {
 		reversed[i] = yamls[j]
 	}
 	return reversed
 }
 
-func generateYamlProperties(yamls []entities.YamlFile) ([]entities.YamlProperty, []entities.YamlContextProperty, []entities.YamlStepProperty) {
+func generateYamlProperties(yamls []*entities.YamlFile) ([]entities.YamlProperty, []entities.YamlContextProperty, []entities.SignalStep) {
 
 	yamlProperties := []entities.YamlProperty{}
 	yamlContextProperties := []entities.YamlContextProperty{}
-	yamlStepProperties := []entities.YamlStepProperty{}
+	signalSteps := []entities.SignalStep{}
+	finalSignalSteps := []entities.SignalStep{}
+	overridableSteps := []string{}
 
 	for _, yaml := range yamls {
 
@@ -210,12 +190,43 @@ func generateYamlProperties(yamls []entities.YamlFile) ([]entities.YamlProperty,
 			yamlContextProperties = append(yamlContextProperties, generateContextArrayProperty("Context.EnvironmentVariables", context.EnvironmentVariables, yaml.Header.Name, index))
 		}
 		for index, step := range yaml.Steps {
-			yamlStepProperties = append(yamlStepProperties, generateStepProperty("Step.Name", step.Step, yaml.Header.Name, index))
-			yamlStepProperties = append(yamlStepProperties, generateStepProperty("Step.Pointer", step.Pointer, yaml.Header.Name, index))
+			if !strings.Contains(step.Step, "$(overridable)") && strings.Trim(step.Step, " ") != "" && !strings.Contains(step.Pointer, "$(overridable)") && strings.Trim(step.Pointer, " ") != "" {
+				signalSteps = append(signalSteps, generateSignalStep(step.Step, step.Pointer, index, yaml.Header.Name))
+			} else {
+				overridableSteps = append(overridableSteps, yaml.Header.Name)
+			}
 		}
 
+		if len(yaml.Steps) == 0 {
+			overridableSteps = append(overridableSteps, yaml.Header.Name)
+		}
 	}
-	return yamlProperties, yamlContextProperties, yamlStepProperties
+
+	//"$(append)"
+	//for _, step := range overridableSteps {
+	//if   {
+	//	finalSignalSteps = append(finalSignalSteps, step)
+	//}
+	//}
+
+	//"$(append)"
+	for _, step := range signalSteps {
+		if containsString(overridableSteps, step.Source) {
+			finalSignalSteps = append(finalSignalSteps, step)
+		}
+	}
+
+	return yamlProperties, yamlContextProperties, finalSignalSteps
+}
+
+func generateSignalStep(step string, pointer string, index int, templateName string) entities.SignalStep {
+	signalStep := entities.SignalStep{
+		Name:    step,
+		Pointer: pointer,
+		Source:  templateName,
+	}
+
+	return signalStep
 }
 
 func generateProperty(name string, value string, templateName string) entities.YamlProperty {
@@ -231,17 +242,6 @@ func generateProperty(name string, value string, templateName string) entities.Y
 
 func generateContextProperty(name string, value string, templateName string, index int) entities.YamlContextProperty {
 	yamlProperty := entities.YamlContextProperty{Name: name, Value: value, TemplateName: templateName, Position: index}
-	if !strings.Contains(value, "$(overridable)") && value != "" {
-		yamlProperty.Sealed = true
-	}
-	if strings.Contains(value, "default") {
-		yamlProperty.Default = true
-	}
-	return yamlProperty
-}
-
-func generateStepProperty(name string, value string, templateName string, index int) entities.YamlStepProperty {
-	yamlProperty := entities.YamlStepProperty{Name: name, Value: value, TemplateName: templateName, Position: index}
 	if !strings.Contains(value, "$(overridable)") && value != "" {
 		yamlProperty.Sealed = true
 	}
@@ -282,17 +282,19 @@ func containsString(slice []string, str string) bool {
 	return false
 }
 
-func readAllYamls(path string) []entities.YamlFile {
+func readAllYamls(path string) []*entities.YamlFile {
 
-	yamlsArray := make([]entities.YamlFile, 0)
+	yamlsArray := make([]*entities.YamlFile, 0)
 
 	yaml := readYaml(path)
-
-	yamlsArray = append(yamlsArray, yaml)
 
 	if strings.TrimSpace(yaml.Header.Inherits) != "" {
 		parentPath, parentName := extractBeforeAndAfterValues(yaml.Header.Import)
 		importInherit := entities.ImportInherit{ParentPath: parentPath, ParentName: parentName}
+		yaml.Parent = readYaml(importInherit.ParentPath)
+
+		yamlsArray = append(yamlsArray, yaml)
+
 		newYamlArray := readAllYamls(importInherit.ParentPath)
 		yamlsArray = append(yamlsArray, newYamlArray...)
 	}
@@ -309,7 +311,7 @@ func extractBeforeAndAfterValues(input string) (string, string) {
 	return "", "" // Return empty strings if the split doesn't produce two parts
 }
 
-func readYaml(filePath string) entities.YamlFile {
+func readYaml(filePath string) *entities.YamlFile {
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		log.Fatal(err)
@@ -321,9 +323,7 @@ func readYaml(filePath string) entities.YamlFile {
 		log.Fatal(err)
 	}
 
-	fmt.Printf("%+v\n", yamlFile)
-
-	return yamlFile
+	return &yamlFile
 }
 
 // func interpretYaml(yaml YamlFile) {

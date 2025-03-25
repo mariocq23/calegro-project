@@ -46,4 +46,5 @@ type YamlFile struct {
 		Step    string `yaml:"step"`
 		Pointer string `yaml:"pointer"`
 	} `yaml:"steps"`
+	Parent *YamlFile
 }
