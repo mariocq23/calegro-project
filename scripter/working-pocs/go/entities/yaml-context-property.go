@@ -1,10 +1,11 @@
 package entities
 
-type YamlProperty struct {
+type YamlContextProperty struct {
 	Sealed       bool
 	Default      bool
 	Name         string
 	Value        string
 	Values       []string
 	TemplateName string
+	Position     int
 }

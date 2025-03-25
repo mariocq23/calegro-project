@@ -14,8 +14,14 @@ import (
 func main() {
 	filePath := os.Args[1]
 	yamls := readAllYamls(filePath)
-	generatedYamlProperties := generateYamlProperties(reverseYamlArray(yamls))
-	for _, prop := range generatedYamlProperties {
+	generalProperties, contextProperties, stepProperties := generateYamlProperties(reverseYamlArray(yamls))
+	for _, prop := range generalProperties {
+		fmt.Printf("%+v\n", prop)
+	}
+	for _, prop := range contextProperties {
+		fmt.Printf("%+v\n", prop)
+	}
+	for _, prop := range stepProperties {
 		fmt.Printf("%+v\n", prop)
 	}
 
@@ -24,11 +30,11 @@ func main() {
 	fmt.Printf("%+v\n", signal)
 }
 
-func generateSignal(generatedYamlProperties []entities.YamlProperty) entities.Signal {
+func generateSignal(generalProperties []entities.YamlProperty, contextProperties []entities.YamlContextProperty, stepProperties []entities.YamlStepProperty) entities.Signal {
 	sealedProperties := []string{}
 	signal := entities.Signal{}
-	signal.Sender = generatedYamlProperties[len(generatedYamlProperties)-1].TemplateName
-	for _, prop := range generatedYamlProperties {
+	signal.Sender = generalProperties[len(generalProperties)-1].TemplateName
+	for _, prop := range generalProperties {
 		if containsString(sealedProperties, prop.Name) {
 			continue
 		}
@@ -37,7 +43,35 @@ func generateSignal(generatedYamlProperties []entities.YamlProperty) entities.Si
 			sealedProperties = append(sealedProperties, prop.Name)
 		}
 	}
+	for _, prop := range contextProperties {
+		if containsString(sealedProperties, prop.Name) {
+			continue
+		}
+		signal = updateSignalEnvironment(signal, prop)
+		if prop.Sealed {
+			sealedProperties = append(sealedProperties, prop.Name)
+		}
+	}
+	for _, prop := range stepProperties {
+		if containsString(sealedProperties, prop.Name) {
+			continue
+		}
+		signal = updateSignalSteps(signal, prop)
+		if prop.Sealed {
+			sealedProperties = append(sealedProperties, prop.Name)
+		}
+	}
 	return signal
+}
+
+func updateSignalSteps(signal entities.Signal, prop entities.YamlStepProperty) entities.Signal {
+	panic("unimplemented")
+}
+
+func updateSignalEnvironment(signal entities.Signal, prop entities.YamlContextProperty) entities.Signal {
+	if signal.Environment != "" && signal.Environment != "default" {
+
+	}
 }
 
 func stringToBoolStrict(s string) bool {
@@ -142,9 +176,11 @@ func reverseYamlArray(yamls []entities.YamlFile) []entities.YamlFile {
 	return reversed
 }
 
-func generateYamlProperties(yamls []entities.YamlFile) []entities.YamlProperty {
+func generateYamlProperties(yamls []entities.YamlFile) ([]entities.YamlProperty, []entities.YamlContextProperty, []entities.YamlStepProperty) {
 
 	yamlProperties := []entities.YamlProperty{}
+	yamlContextProperties := []entities.YamlContextProperty{}
+	yamlStepProperties := []entities.YamlStepProperty{}
 
 	for _, yaml := range yamls {
 
@@ -167,23 +203,23 @@ func generateYamlProperties(yamls []entities.YamlFile) []entities.YamlProperty {
 		yamlProperties = append(yamlProperties, generateArrayProperty("Action.InitialInputs", yaml.Action.InitialInputs, yaml.Header.Name))
 
 		for index, context := range yaml.Contexts {
-			yamlProperties = append(yamlProperties, generatePropertyWithPosition("Context.Context", context.Context, yaml.Header.Name, index))
-			yamlProperties = append(yamlProperties, generatePropertyWithPosition("Context.Dependencies.Location", context.Dependencies.Location, yaml.Header.Name, index))
-			yamlProperties = append(yamlProperties, generateArrayPropertyWithPosition("Context.Dependencies.List", context.Dependencies.List, yaml.Header.Name, index))
-			yamlProperties = append(yamlProperties, generateArrayPropertyWithPosition("Context.ContextInitialInputs", context.ContextInitialInputs, yaml.Header.Name, index))
-			yamlProperties = append(yamlProperties, generateArrayPropertyWithPosition("Context.EnvironmentVariables", context.EnvironmentVariables, yaml.Header.Name, index))
+			yamlContextProperties = append(yamlContextProperties, generateContextProperty("Context.Context", context.Context, yaml.Header.Name, index))
+			yamlContextProperties = append(yamlContextProperties, generateContextProperty("Context.Dependencies.Location", context.Dependencies.Location, yaml.Header.Name, index))
+			yamlContextProperties = append(yamlContextProperties, generateContextArrayProperty("Context.Dependencies.List", context.Dependencies.List, yaml.Header.Name, index))
+			yamlContextProperties = append(yamlContextProperties, generateContextArrayProperty("Context.ContextInitialInputs", context.ContextInitialInputs, yaml.Header.Name, index))
+			yamlContextProperties = append(yamlContextProperties, generateContextArrayProperty("Context.EnvironmentVariables", context.EnvironmentVariables, yaml.Header.Name, index))
 		}
 		for index, step := range yaml.Steps {
-			yamlProperties = append(yamlProperties, generatePropertyWithPosition("Step.Name", step.Step, yaml.Header.Name, index))
-			yamlProperties = append(yamlProperties, generatePropertyWithPosition("Step.Pointer", step.Pointer, yaml.Header.Name, index))
+			yamlStepProperties = append(yamlStepProperties, generateStepProperty("Step.Name", step.Step, yaml.Header.Name, index))
+			yamlStepProperties = append(yamlStepProperties, generateStepProperty("Step.Pointer", step.Pointer, yaml.Header.Name, index))
 		}
 
 	}
-	return yamlProperties
+	return yamlProperties, yamlContextProperties, yamlStepProperties
 }
 
 func generateProperty(name string, value string, templateName string) entities.YamlProperty {
-	yamlProperty := entities.YamlProperty{Name: name, Value: value, TemplateName: templateName, Position: -1}
+	yamlProperty := entities.YamlProperty{Name: name, Value: value, TemplateName: templateName}
 	if !strings.Contains(value, "$(overridable)") && value != "" {
 		yamlProperty.Sealed = true
 	}
@@ -193,9 +229,8 @@ func generateProperty(name string, value string, templateName string) entities.Y
 	return yamlProperty
 }
 
-func generatePropertyWithPosition(name string, value string, templateName string, position int) entities.YamlProperty {
-	yamlProperty := entities.YamlProperty{Name: name, Value: value, TemplateName: templateName, Position: position}
-
+func generateContextProperty(name string, value string, templateName string, index int) entities.YamlContextProperty {
+	yamlProperty := entities.YamlContextProperty{Name: name, Value: value, TemplateName: templateName, Position: index}
 	if !strings.Contains(value, "$(overridable)") && value != "" {
 		yamlProperty.Sealed = true
 	}
@@ -205,9 +240,19 @@ func generatePropertyWithPosition(name string, value string, templateName string
 	return yamlProperty
 }
 
-func generateArrayPropertyWithPosition(name string, values []string, templateName string, position int) entities.YamlProperty {
-	yamlProperty := entities.YamlProperty{Name: name, Values: values, TemplateName: templateName, Position: position}
+func generateStepProperty(name string, value string, templateName string, index int) entities.YamlStepProperty {
+	yamlProperty := entities.YamlStepProperty{Name: name, Value: value, TemplateName: templateName, Position: index}
+	if !strings.Contains(value, "$(overridable)") && value != "" {
+		yamlProperty.Sealed = true
+	}
+	if strings.Contains(value, "default") {
+		yamlProperty.Default = true
+	}
+	return yamlProperty
+}
 
+func generateArrayProperty(name string, values []string, templateName string) entities.YamlProperty {
+	yamlProperty := entities.YamlProperty{Name: name, Values: values, TemplateName: templateName}
 	if !containsString(values, "$(overridable)") && values != nil && len(values) > 0 {
 		yamlProperty.Sealed = true
 	}
@@ -217,8 +262,8 @@ func generateArrayPropertyWithPosition(name string, values []string, templateNam
 	return yamlProperty
 }
 
-func generateArrayProperty(name string, values []string, templateName string) entities.YamlProperty {
-	yamlProperty := entities.YamlProperty{Name: name, Values: values, TemplateName: templateName, Position: -1}
+func generateContextArrayProperty(name string, values []string, templateName string, index int) entities.YamlContextProperty {
+	yamlProperty := entities.YamlContextProperty{Name: name, Values: values, TemplateName: templateName, Position: index}
 	if !containsString(values, "$(overridable)") && values != nil && len(values) > 0 {
 		yamlProperty.Sealed = true
 	}
