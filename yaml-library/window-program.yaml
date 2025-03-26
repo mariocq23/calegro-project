@@ -1,9 +1,10 @@
 header:
+  import: ../../../yaml-library/raw-program.yaml  => raw-program 
+  inherits: raw-program
   name: window-program
 
 configuration:
   agent-or-label: $(overridable) default
-  execution-mode: script #file-generator
   context-name: $(overridable) default
 
 action:

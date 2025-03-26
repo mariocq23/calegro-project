@@ -17,7 +17,7 @@ func main() {
 	for _, yaml := range yamls {
 		fmt.Printf("%+v\n", yaml)
 	}
-	generalProperties, contextProperties, signalSteps := generateYamlProperties(reverseYamlArray(yamls))
+	generalProperties, contextProperties, signalSteps := generateYamlProperties(yamls)
 	for _, prop := range generalProperties {
 		fmt.Printf("%+v\n", prop)
 	}
@@ -293,11 +293,12 @@ func readAllYamls(path string) []*entities.YamlFile {
 		importInherit := entities.ImportInherit{ParentPath: parentPath, ParentName: parentName}
 		yaml.Parent = readYaml(importInherit.ParentPath)
 
-		yamlsArray = append(yamlsArray, yaml)
-
 		newYamlArray := readAllYamls(importInherit.ParentPath)
 		yamlsArray = append(yamlsArray, newYamlArray...)
 	}
+
+	yamlsArray = append(yamlsArray, yaml)
+
 	return yamlsArray
 }
 
@@ -312,6 +313,13 @@ func extractBeforeAndAfterValues(input string) (string, string) {
 }
 
 func readYaml(filePath string) *entities.YamlFile {
+
+	dir, err := os.Getwd()
+	if err != nil {
+		fmt.Println("Error getting current directory:", err)
+	}
+	fmt.Println("Current directory:", dir)
+
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		log.Fatal(err)

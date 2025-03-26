@@ -10,7 +10,7 @@
             "request": "launch",
             "mode": "auto",
             "program": "scripter/working-pocs/go",
-            "args": ["../../../examples/vikings/vikings.yaml"]
+            "args": ["../../../yaml-library/examples/vikings.yaml"]
         }
     ]
 }

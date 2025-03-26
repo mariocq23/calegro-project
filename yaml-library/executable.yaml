@@ -1,0 +1,7 @@
+header:
+  import: ../../../yaml-library/base.yaml  => base
+  inherits: base
+  name: executable
+
+action:
+  shutdown-signal: cascade #single none

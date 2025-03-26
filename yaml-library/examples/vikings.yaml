@@ -1,11 +1,5 @@
 header:
   import: ../../../yaml-library/window-program.yaml => window-program 
-    #- prod-action-1.yaml => prod-action-1
-    #- prod-action-2.yaml => prod-action-2
-    #- prod-action-3.yaml => prod-action-3
-   # - pointer-1.yaml => pointer-1
-   # - pointer-2.yaml => pointer-2
-   # - security-guard.yaml => security-guard
   inherits: window-program
   name: vikings-video-game
 

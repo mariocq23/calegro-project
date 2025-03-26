@@ -1,0 +1,6 @@
+header:
+  name: base
+
+action:
+  type: console-program
+  output-mode: console

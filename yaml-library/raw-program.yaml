@@ -1,0 +1,7 @@
+header:
+  import: ../../../yaml-library/executable.yaml  => executable
+  inherits: executable
+  name: raw-program
+
+configuration:
+  execution-mode: script #file-generator
