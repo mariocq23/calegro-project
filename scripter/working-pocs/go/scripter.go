@@ -210,13 +210,24 @@ func generateYamlProperties(yamls []*entities.YamlFile) ([]entities.YamlProperty
 	//}
 
 	//"$(append)"
+
+	var ancestors []string
+
 	for _, step := range signalSteps {
+		currentAncestors := obtainAllSourceAncestors(step.Source, yamls)
+
+		ancestors = appendFiltered(ancestors, currentAncestors)
+
 		if containsString(overridableSteps, step.Source) {
 			finalSignalSteps = append(finalSignalSteps, step)
 		}
 	}
 
 	return yamlProperties, yamlContextProperties, finalSignalSteps
+}
+
+func obtainAllSourceAncestors(templateName string, yamls []*entities.YamlFile) []string {
+	panic("unimplemented")
 }
 
 func generateSignalStep(step string, pointer string, index int, templateName string) entities.SignalStep {
