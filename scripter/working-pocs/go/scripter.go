@@ -211,15 +211,17 @@ func generateYamlProperties(yamls []*entities.YamlFile) ([]entities.YamlProperty
 
 	//"$(append)"
 
-	var ancestors []string
-
 	for _, step := range signalSteps {
-		currentAncestors := obtainAllSourceAncestors(step.Source, yamls)
-
-		ancestors = appendNew(ancestors, currentAncestors)
+		ancestors := obtainAllSourceAncestors(step.Source, yamls)
 
 		if containsString(overridableSteps, step.Source) {
 			finalSignalSteps = append(finalSignalSteps, step)
+		} else {
+			for _, ancestor := range ancestors {
+				if containsString(overridableSteps, ancestor) {
+					finalSignalSteps = append(finalSignalSteps, step)
+				}
+			}
 		}
 	}
 
@@ -227,11 +229,61 @@ func generateYamlProperties(yamls []*entities.YamlFile) ([]entities.YamlProperty
 }
 
 func appendNew(ancestors []string, currentAncestors []string) []string {
-	panic("unimplemented")
+	for _, currentAncestor := range currentAncestors {
+		if !containsString(ancestors, currentAncestor) {
+			ancestors = append(ancestors, currentAncestor)
+		}
+	}
+	return ancestors
+}
+
+func readAllYamls(path string) []*entities.YamlFile {
+
+	yamlsArray := make([]*entities.YamlFile, 0)
+
+	yaml := readYaml(path)
+
+	if strings.TrimSpace(yaml.Header.Inherits) != "" {
+		parentPath, parentName := extractBeforeAndAfterValues(yaml.Header.Import)
+		importInherit := entities.ImportInherit{ParentPath: parentPath, ParentName: parentName}
+		yaml.Parent = readYaml(importInherit.ParentPath)
+
+		newYamlArray := readAllYamls(importInherit.ParentPath)
+		yamlsArray = append(yamlsArray, newYamlArray...)
+	}
+
+	yamlsArray = append(yamlsArray, yaml)
+
+	return yamlsArray
 }
 
 func obtainAllSourceAncestors(templateName string, yamls []*entities.YamlFile) []string {
-	panic("unimplemented")
+	yamlsArray := make([]string, 0)
+
+	template := findYamlByName(yamls, templateName)
+
+	if template != nil && strings.TrimSpace(template.Header.Inherits) != "" {
+		parentPath, parentName := extractBeforeAndAfterValues(template.Header.Import)
+		importInherit := entities.ImportInherit{ParentPath: parentPath, ParentName: parentName}
+		template.Parent = readYaml(importInherit.ParentPath)
+
+		newYamlArray := obtainAllSourceAncestors(importInherit.ParentPath, yamls)
+		yamlsArray = append(yamlsArray, newYamlArray...)
+	}
+
+	yamlsArray = append(yamlsArray, template.Header.Name)
+
+	return yamlsArray
+
+}
+
+func findYamlByName(yamls []*entities.YamlFile, templateName string) *entities.YamlFile {
+	for _, yaml := range yamls {
+		if yaml.Header.Name == templateName {
+			return yaml
+		}
+	}
+	return nil
 }
 
 func generateSignalStep(step string, pointer string, index int, templateName string) entities.SignalStep {
@@ -295,26 +347,6 @@ func containsString(slice []string, str string) bool {
 		}
 	}
 	return false
-}
-
-func readAllYamls(path string) []*entities.YamlFile {
-
-	yamlsArray := make([]*entities.YamlFile, 0)
-
-	yaml := readYaml(path)
-
-	if strings.TrimSpace(yaml.Header.Inherits) != "" {
-		parentPath, parentName := extractBeforeAndAfterValues(yaml.Header.Import)
-		importInherit := entities.ImportInherit{ParentPath: parentPath, ParentName: parentName}
-		yaml.Parent = readYaml(importInherit.ParentPath)
-
-		newYamlArray := readAllYamls(importInherit.ParentPath)
-		yamlsArray = append(yamlsArray, newYamlArray...)
-	}
-
-	yamlsArray = append(yamlsArray, yaml)
-
-	return yamlsArray
 }
 
 func extractBeforeAndAfterValues(input string) (string, string) {
