@@ -1,0 +1,14 @@
+header:
+  import: ../../../yaml-library/raw-program.yaml  => raw-program 
+  inherits: raw-program
+  name: window-program
+
+configuration:
+  agent-or-label: $(overridable) default
+  context-name: $(overridable) default
+
+action:
+  type: console-program
+  api: $(overridable) default
+  output-mode: console #rest-api none
+  shutdown-signal: cascade #single none

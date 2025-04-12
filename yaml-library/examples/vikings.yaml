@@ -1,0 +1,43 @@
+header:
+  import: ../../../yaml-library/window-program.yaml => window-program 
+  inherits: window-program
+  name: vikings-video-game
+
+configuration:
+  bypass-security: true
+  context-name: production-1
+
+action:
+  name-or-full-path: dosbox
+  platform:
+    os-family: windows
+    package-installer: chocolatey
+    installation-dependencies:
+      - dosbox
+
+contexts:
+  - context: production-1 
+    dependencies:
+      location: home/prod-folder
+      list:
+        - prod-action-1
+        - prod-action-2
+        - prod-action-3
+    context-initial-inputs: ["-c", "mount c c:\\Games\\DosGames\\lost-vikings", "-c", "c:", "-c", "VIKINGS.EXE"]
+    environment-variables:
+      - (work-folder) home/work-folder
+  - context: production-2
+    dependencies:        
+      location: home/prod-folder-2
+      list:
+        - prod-action-1
+        - prod-action-2
+    initial-inputs:
+    environment-variables:
+      - (work-folder) home/work-folder
+
+steps: #steps related to the very action (when one solely step may be too complex), otherwise place in dependency list 
+  - step: step-1
+    pointer: pointer-1
+  - step: step-2
+    pointer: pointer-2
