@@ -1,8 +1,0 @@
-{
-  "profiles": {
-    "vikings": {
-      "commandName": "Project",
-      "commandLineArgs": "\"C:\\Games\\DosGames\\lost-vikings\\VIKINGS.EXE\""
-    }
-  }
-}
