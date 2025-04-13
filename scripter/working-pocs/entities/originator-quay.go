@@ -1,6 +1,6 @@
 package entities
 
 type OriginatorQuay struct {
-	Name string
-	Path string
+	Name         string
+	SourceOrPath string
 }

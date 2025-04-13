@@ -1,6 +1,5 @@
 header:
-  import: ../../../yaml-library/base.yaml  => base
-  inherits: base
+  inherits: ../../yaml-library/base.yaml  => base
   name: executable
 
 action:

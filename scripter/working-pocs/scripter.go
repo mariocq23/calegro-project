@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
+	"reflect"
 	"scripter/entities"
 	"strconv"
 	"strings"
@@ -13,6 +15,7 @@ import (
 
 func main() {
 	filePath := os.Args[1]
+	originatorPath := os.Args[2]
 	yamls := readAllYamls(filePath)
 	for _, yaml := range yamls {
 		fmt.Printf("%+v\n", yaml)
@@ -28,12 +31,12 @@ func main() {
 		fmt.Printf("%+v\n", prop)
 	}
 
-	signal := generateSignal(generalProperties, signalSteps)
+	signal := generateSignal(generalProperties, contextProperties, signalSteps, originatorPath)
 
 	fmt.Printf("%+v\n", signal)
 }
 
-func generateSignal(generalProperties []entities.YamlProperty, steps []entities.SignalStep) entities.Signal {
+func generateSignal(generalProperties []entities.YamlProperty, contextProperties []entities.YamlContextProperty, steps []entities.SignalStep, originatorPath string) entities.Signal {
 	sealedProperties := []string{}
 	signal := entities.Signal{}
 	signal.Sender = generalProperties[len(generalProperties)-1].TemplateName
@@ -41,7 +44,7 @@ func generateSignal(generalProperties []entities.YamlProperty, steps []entities.
 		if containsString(sealedProperties, prop.Name) {
 			continue
 		}
-		signal = updateSignal(signal, prop)
+		signal = updateSignalGeneralProperties(signal, prop)
 		if prop.Sealed {
 			sealedProperties = append(sealedProperties, prop.Name)
 		}
@@ -49,7 +52,28 @@ func generateSignal(generalProperties []entities.YamlProperty, steps []entities.
 
 	signal.Steps = steps
 
+	if originatorPath != "" {
+		signal.OriginatorQuay.SourceOrPath = originatorPath
+		signal.OriginatorQuay.Name = getFilenameWithoutExtension(originatorPath)
+	}
+
+	if signal.Environment == "default" {
+		return signal
+	}
+
+	signal = updateSignalContextProperties(signal, contextProperties)
+
 	return signal
+}
+
+func getFilenameWithoutExtension(path string) string {
+	filename := filepath.Base(path)
+	extension := filepath.Ext(filename)
+
+	if extension != "" {
+		return strings.TrimSuffix(filename, extension)
+	}
+	return filename
 }
 
 func stringToBoolStrict(s string) bool {
@@ -79,7 +103,7 @@ func removeUnnecessaryStringInArray(values []string) []string {
 	return result
 }
 
-func updateSignal(signal entities.Signal, prop entities.YamlProperty) entities.Signal {
+func updateSignalGeneralProperties(signal entities.Signal, prop entities.YamlProperty) entities.Signal {
 
 	if prop.Name == "Configuration.AgentOrLabel" && prop.Value != "" {
 		signal.Executor = removeUnnecessaryString(prop.Value)
@@ -90,8 +114,8 @@ func updateSignal(signal entities.Signal, prop entities.YamlProperty) entities.S
 	if prop.Name == "Configuration.ExecutionMode" && prop.Value != "" {
 		signal.ExecutionMode = removeUnnecessaryString(prop.Value)
 	}
-	if prop.Name == "Configuration.BypassSecurity" && prop.Value != "" {
-		signal.BypassSecurity = stringToBoolStrict(removeUnnecessaryString(prop.Value))
+	if prop.Name == "Configuration.BypassSecurity" {
+		signal.BypassSecurity = prop.BoolValue
 	}
 	if prop.Name == "Configuration.Security.CertificationHub" && prop.Value != "" {
 		signal.CertificationHub = removeUnnecessaryString(prop.Value)
@@ -129,8 +153,48 @@ func updateSignal(signal entities.Signal, prop entities.YamlProperty) entities.S
 	if prop.Name == "Action.InitialInputs" && prop.Values != nil && len(prop.Values) > 0 {
 		signal.Arguments = removeUnnecessaryStringInArray(prop.Values)
 	}
-	if prop.Name == "Action.EnvironmentVariables" && prop.Values != nil && len(prop.Values) > 0 {
-		signal.EnvironmentVariables = removeUnnecessaryStringInArray(prop.Values)
+	if prop.Name == "Action.EnvironmentVariables" && prop.DictValues != nil && len(prop.DictValues) > 0 {
+		signal.EnvironmentVariables = prop.DictValues
+	}
+	if prop.Name == "Action.ExecutionDependencies" && prop.Values != nil && len(prop.Values) > 0 {
+		signal.ExecutionDependencies = prop.Values
+	}
+
+	return signal
+}
+
+// Contexts []struct {
+// 	Context      string `yaml:"context"`
+// 	Dependencies struct {
+// 		Location string   `yaml:"location"`
+// 		List     []string `yaml:"list"`
+// 	} `yaml:"dependencies"`
+// 	ContextInitialInputs []string `yaml:"context-initial-inputs"`
+// 	EnvironmentVariables []string `yaml:"environment-variables"`
+// } `yaml:"contexts"`
+
+func updateSignalContextProperties(signal entities.Signal, props []entities.YamlContextProperty) entities.Signal {
+	chosenContextIndex := 0
+
+	for _, item := range props {
+		if item.Name == "Context.Context" && item.Value == signal.Environment {
+			chosenContextIndex = item.Position
+		}
+	}
+
+	for index, item := range props {
+		if index != chosenContextIndex {
+			continue
+		}
+		if item.Name == "Context.Dependencies" {
+			signal.ExecutionDependencies = item.Values
+		}
+		if item.Name == "Context.EnvironmentVariables" {
+			signal.EnvironmentVariables = item.DictValues
+		}
+		if item.Name == "Context.ContextInitialInputs" {
+			signal.Arguments = item.Values
+		}
 	}
 
 	return signal
@@ -167,7 +231,9 @@ func generateYamlProperties(yamls []*entities.YamlFile) ([]entities.YamlProperty
 		yamlProperties = append(yamlProperties, generateProperty("Configuration.AgentOrLabel", yaml.Configuration.AgentOrLabel, yaml.Header.Name))
 		yamlProperties = append(yamlProperties, generateProperty("Configuration.ContextName", yaml.Configuration.ContextName, yaml.Header.Name))
 		yamlProperties = append(yamlProperties, generateProperty("Configuration.ExecutionMode", yaml.Configuration.ExecutionMode, yaml.Header.Name))
-		yamlProperties = append(yamlProperties, generateProperty("Configuration.BypassSecurity", strconv.FormatBool(yaml.Configuration.BypassSecurity), yaml.Header.Name))
+		if yaml.Configuration.BypassSecurity != nil {
+			yamlProperties = append(yamlProperties, generateBoolProperty("Configuration.BypassSecurity", *yaml.Configuration.BypassSecurity, yaml.Header.Name))
+		}
 		yamlProperties = append(yamlProperties, generateProperty("Configuration.Security.CertificationHub", yaml.Configuration.Security.CertificationHub, yaml.Header.Name))
 		yamlProperties = append(yamlProperties, generateProperty("Configuration.Security.AuthenticationHub", yaml.Configuration.Security.AuthenticationHub, yaml.Header.Name))
 		yamlProperties = append(yamlProperties, generateProperty("Configuration.Security.AuthorizationHub", yaml.Configuration.Security.AuthorizationHub, yaml.Header.Name))
@@ -181,13 +247,13 @@ func generateYamlProperties(yamls []*entities.YamlFile) ([]entities.YamlProperty
 		yamlProperties = append(yamlProperties, generateProperty("Action.Platform.PackageInstaller", yaml.Action.Platform.PackageInstaller, yaml.Header.Name))
 		yamlProperties = append(yamlProperties, generateArrayProperty("Action.Platform.InstallationDependencies", yaml.Action.Platform.InstallationDependencies, yaml.Header.Name))
 		yamlProperties = append(yamlProperties, generateArrayProperty("Action.InitialInputs", yaml.Action.InitialInputs, yaml.Header.Name))
+		yamlProperties = append(yamlProperties, generateDictionaryProperty("Action.EnvironmentVariables", stringListToMap(removeUnnecessaryStringInArray(yaml.Action.EnvironmentVariables)), yaml.Header.Name))
 
 		for index, context := range yaml.Contexts {
 			yamlContextProperties = append(yamlContextProperties, generateContextProperty("Context.Context", context.Context, yaml.Header.Name, index))
-			yamlContextProperties = append(yamlContextProperties, generateContextProperty("Context.Dependencies.Location", context.Dependencies.Location, yaml.Header.Name, index))
-			yamlContextProperties = append(yamlContextProperties, generateContextArrayProperty("Context.Dependencies.List", context.Dependencies.List, yaml.Header.Name, index))
+			yamlContextProperties = append(yamlContextProperties, generateContextArrayProperty("Context.Dependencies", context.Dependencies, yaml.Header.Name, index))
 			yamlContextProperties = append(yamlContextProperties, generateContextArrayProperty("Context.ContextInitialInputs", context.ContextInitialInputs, yaml.Header.Name, index))
-			yamlContextProperties = append(yamlContextProperties, generateContextArrayProperty("Context.EnvironmentVariables", context.EnvironmentVariables, yaml.Header.Name, index))
+			yamlContextProperties = append(yamlContextProperties, generateContextDictionaryProperty("Context.EnvironmentVariables", stringListToMap(removeUnnecessaryStringInArray(context.EnvironmentVariables)), yaml.Header.Name, index))
 		}
 		for index, step := range yaml.Steps {
 			if !strings.Contains(step.Step, "$(overridable)") && strings.Trim(step.Step, " ") != "" && !strings.Contains(step.Pointer, "$(overridable)") && strings.Trim(step.Pointer, " ") != "" {
@@ -219,7 +285,7 @@ func generateYamlProperties(yamls []*entities.YamlFile) ([]entities.YamlProperty
 		} else {
 			for _, ancestor := range ancestors {
 				if containsString(overridableSteps, ancestor) {
-					finalSignalSteps = append(finalSignalSteps, step)
+					finalSignalSteps = appendNew(finalSignalSteps, step)
 				}
 			}
 		}
@@ -228,13 +294,25 @@ func generateYamlProperties(yamls []*entities.YamlFile) ([]entities.YamlProperty
 	return yamlProperties, yamlContextProperties, finalSignalSteps
 }
 
-func appendNew(ancestors []string, currentAncestors []string) []string {
-	for _, currentAncestor := range currentAncestors {
-		if !containsString(ancestors, currentAncestor) {
-			ancestors = append(ancestors, currentAncestor)
+func stringListToMap(input []string) map[string]string {
+	resultMap := make(map[string]string)
+
+	for _, item := range input {
+		parts := strings.SplitN(item, " ", 2)
+		if len(parts) == 2 {
+			key := strings.Trim(parts[0], "()") // Remove parentheses
+			resultMap[key] = parts[1]
 		}
 	}
-	return ancestors
+
+	return resultMap
+}
+
+func appendNew(steps []entities.SignalStep, currentStep entities.SignalStep) []entities.SignalStep {
+	if !containsObject(steps, currentStep) {
+		steps = append(steps, currentStep)
+	}
+	return steps
 }
 
 func readAllYamls(path string) []*entities.YamlFile {
@@ -244,10 +322,9 @@ func readAllYamls(path string) []*entities.YamlFile {
 	yaml := readYaml(path)
 
 	if strings.TrimSpace(yaml.Header.Inherits) != "" {
-		parentPath, parentName := extractBeforeAndAfterValues(yaml.Header.Import)
+		parentPath, parentName := extractBeforeAndAfterValues(yaml.Header.Inherits)
 		importInherit := entities.ImportInherit{ParentPath: parentPath, ParentName: parentName}
 		yaml.Parent = readYaml(importInherit.ParentPath)
-
 		newYamlArray := readAllYamls(importInherit.ParentPath)
 		yamlsArray = append(yamlsArray, newYamlArray...)
 	}
@@ -263,11 +340,9 @@ func obtainAllSourceAncestors(templateName string, yamls []*entities.YamlFile) [
 	template := findYamlByName(yamls, templateName)
 
 	if template != nil && strings.TrimSpace(template.Header.Inherits) != "" {
-		parentPath, parentName := extractBeforeAndAfterValues(template.Header.Import)
+		parentPath, parentName := extractBeforeAndAfterValues(template.Header.Inherits)
 		importInherit := entities.ImportInherit{ParentPath: parentPath, ParentName: parentName}
-		template.Parent = readYaml(importInherit.ParentPath)
-
-		newYamlArray := obtainAllSourceAncestors(importInherit.ParentPath, yamls)
+		newYamlArray := obtainAllSourceAncestors(importInherit.ParentName, yamls)
 		yamlsArray = append(yamlsArray, newYamlArray...)
 	}
 
@@ -307,6 +382,15 @@ func generateProperty(name string, value string, templateName string) entities.Y
 	return yamlProperty
 }
 
+func generateBoolProperty(name string, value bool, templateName string) entities.YamlProperty {
+	yamlProperty := entities.YamlProperty{Name: name, BoolValue: value, TemplateName: templateName}
+	if !value && name == "Configuration.BypassSecurity" {
+		yamlProperty.Sealed = true
+		yamlProperty.Default = true
+	}
+	return yamlProperty
+}
+
 func generateContextProperty(name string, value string, templateName string, index int) entities.YamlContextProperty {
 	yamlProperty := entities.YamlContextProperty{Name: name, Value: value, TemplateName: templateName, Position: index}
 	if !strings.Contains(value, "$(overridable)") && value != "" {
@@ -340,6 +424,51 @@ func generateContextArrayProperty(name string, values []string, templateName str
 	return yamlProperty
 }
 
+func generateDictionaryProperty(name string, values map[string]string, templateName string) entities.YamlProperty {
+	yamlProperty := entities.YamlProperty{Name: name, DictValues: values, TemplateName: templateName}
+	if !containsKeyValuePair(values, "$(overridable)") && values != nil && len(values) > 0 {
+		yamlProperty.Sealed = true
+	}
+	if containsKeyValuePair(values, "default") {
+		yamlProperty.Default = true
+	}
+	return yamlProperty
+}
+
+func generateContextDictionaryProperty(name string, values map[string]string, templateName string, index int) entities.YamlContextProperty {
+	yamlProperty := entities.YamlContextProperty{Name: name, DictValues: values, TemplateName: templateName, Position: index}
+	if !containsKeyValuePair(values, "$(overridable)") && values != nil && len(values) > 0 {
+		yamlProperty.Sealed = true
+	}
+	if containsKeyValuePair(values, "default") {
+		yamlProperty.Default = true
+	}
+	return yamlProperty
+}
+
+func containsKeyValuePair(values map[string]string, target string) bool {
+	for key, value := range values {
+		if key == target || value == target {
+			return true
+		}
+	}
+	return false
+}
+
+func containsObject(steps []entities.SignalStep, step entities.SignalStep) bool {
+	arrVal := reflect.ValueOf(steps)
+	if arrVal.Kind() != reflect.Slice {
+		panic("arr must be a slice")
+	}
+
+	for i := 0; i < arrVal.Len(); i++ {
+		if reflect.DeepEqual(arrVal.Index(i).Interface(), step) {
+			return true
+		}
+	}
+	return false
+}
+
 func containsString(slice []string, str string) bool {
 	for _, item := range slice {
 		if item == str {
@@ -360,12 +489,6 @@ func extractBeforeAndAfterValues(input string) (string, string) {
 }
 
 func readYaml(filePath string) *entities.YamlFile {
-
-	dir, err := os.Getwd()
-	if err != nil {
-		fmt.Println("Error getting current directory:", err)
-	}
-	fmt.Println("Current directory:", dir)
 
 	data, err := os.ReadFile(filePath)
 	if err != nil {

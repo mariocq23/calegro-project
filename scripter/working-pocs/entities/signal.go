@@ -23,7 +23,7 @@ type Signal struct {
 	InstallationDependencies []string
 	ExecutionDependencies    []string
 	Environment              string
-	EnvironmentVariables     []string
+	EnvironmentVariables     map[string]string
 	Steps                    []SignalStep
 	OriginatorQuay           OriginatorQuay
 	EmitQuays                []EmitQuay

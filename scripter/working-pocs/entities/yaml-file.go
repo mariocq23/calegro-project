@@ -2,14 +2,13 @@ package entities
 
 type YamlFile struct {
 	Header struct {
-		Import   string `yaml:"import"`
 		Inherits string `yaml:"inherits"`
 		Name     string `yaml:"name"`
 	} `yaml:"header"`
 	Configuration struct {
 		AgentOrLabel   string `yaml:"agent-or-label"`
 		ExecutionMode  string `yaml:"execution-mode"`
-		BypassSecurity bool   `yaml:"bypass-security"`
+		BypassSecurity *bool  `yaml:"bypass-security"`
 		Security       struct {
 			AuthenticationHub string `yaml:"authentication-hub"`
 			AuthorizationHub  string `yaml:"authorization-hub"`
@@ -32,13 +31,11 @@ type YamlFile struct {
 			PackageInstaller         string   `yaml:"package-installer"`
 			InstallationDependencies []string `yaml:"installation-dependencies"`
 		}
+		ExecutionDependencies []string `yaml:"execution-dependencies"`
 	} `yaml:"action"`
 	Contexts []struct {
-		Context      string `yaml:"context"`
-		Dependencies struct {
-			Location string   `yaml:"location"`
-			List     []string `yaml:"list"`
-		} `yaml:"dependencies"`
+		Context              string   `yaml:"context"`
+		Dependencies         []string `yaml:"dependencies"`
 		ContextInitialInputs []string `yaml:"context-initial-inputs"`
 		EnvironmentVariables []string `yaml:"environment-variables"`
 	} `yaml:"contexts"`

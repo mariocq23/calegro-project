@@ -1,6 +1,5 @@
 header:
-  import: ../../../yaml-library/raw-program.yaml  => raw-program 
-  inherits: raw-program
+  inherits: ../../yaml-library/raw-program.yaml  => raw-program 
   name: window-program
 
 configuration:
@@ -8,7 +7,7 @@ configuration:
   context-name: $(overridable) default
 
 action:
-  type: console-program
+  environment-variables:
+    - (work-folder) home/workfolder
   api: $(overridable) default
-  output-mode: console #rest-api none
-  shutdown-signal: cascade #single none
+  

@@ -6,6 +6,7 @@ type YamlContextProperty struct {
 	Name         string
 	Value        string
 	Values       []string
+	DictValues   map[string]string // Dictionary as a property
 	TemplateName string
 	Position     int
 }
