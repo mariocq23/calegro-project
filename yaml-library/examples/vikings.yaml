@@ -4,7 +4,7 @@ header:
 
 configuration:
   bypass-security: true
-  context-name: default
+  context-name: production-1
 
 action:
   name-or-full-path: dosbox
@@ -24,7 +24,7 @@ contexts:
       - home/prod-folder/prod-action-1
       - home/prod-folder/prod-action-2
       - home/prod-folder/prod-action-3
-    context-initial-inputs: ["-c", "mount c c:\\Games\\DosGames\\lost-vikings", "-c", "c:", "-c", "VIKINGS.EXE"]
+    context-initial-inputs: ["-c", "mount c c:\\Games\\DosGames\\lost-vikings", "-c", "c:", "-c", "VIKINGS2.EXE"]
     environment-variables:
       - (work-folder) home/workfolder
   - context: production-2

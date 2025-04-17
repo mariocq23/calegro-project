@@ -24,7 +24,6 @@ type Signal struct {
 	ExecutionDependencies    []string
 	Environment              string
 	EnvironmentVariables     map[string]string
-	Steps                    []SignalStep
 	OriginatorQuay           OriginatorQuay
 	EmitQuays                []EmitQuay
 }

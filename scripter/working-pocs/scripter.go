@@ -17,19 +17,8 @@ func main() {
 	filePath := os.Args[1]
 	originatorPath := os.Args[2]
 	yamls := readAllYamls(filePath)
-	for _, yaml := range yamls {
-		fmt.Printf("%+v\n", yaml)
-	}
+
 	generalProperties, contextProperties, signalSteps := generateYamlProperties(yamls)
-	for _, prop := range generalProperties {
-		fmt.Printf("%+v\n", prop)
-	}
-	for _, prop := range contextProperties {
-		fmt.Printf("%+v\n", prop)
-	}
-	for _, prop := range signalSteps {
-		fmt.Printf("%+v\n", prop)
-	}
 
 	signal := generateSignal(generalProperties, contextProperties, signalSteps, originatorPath)
 
@@ -50,8 +39,6 @@ func generateSignal(generalProperties []entities.YamlProperty, contextProperties
 		}
 	}
 
-	signal.Steps = steps
-
 	if originatorPath != "" {
 		signal.OriginatorQuay.SourceOrPath = originatorPath
 		signal.OriginatorQuay.Name = getFilenameWithoutExtension(originatorPath)
@@ -63,7 +50,25 @@ func generateSignal(generalProperties []entities.YamlProperty, contextProperties
 
 	signal = updateSignalContextProperties(signal, contextProperties)
 
+	signal.EmitQuays = generateEmitQuays(signal, steps)
+
 	return signal
+}
+
+func generateEmitQuays(signal entities.Signal, steps []entities.SignalStep) []entities.EmitQuay {
+	emitQuays := make([]entities.EmitQuay, 0)
+
+	for index, executionDependency := range signal.ExecutionDependencies {
+		emitQuay := entities.EmitQuay{Name: getFilenameWithoutExtension(executionDependency), Path: executionDependency, Relationship: entities.Dependency, Priority: index}
+		emitQuays = append(emitQuays, emitQuay)
+	}
+
+	for index, step := range steps {
+		emitQuay := entities.EmitQuay{Name: getFilenameWithoutExtension(step.Pointer), Path: step.Pointer, Relationship: entities.Step, Priority: index}
+		emitQuays = append(emitQuays, emitQuay)
+	}
+
+	return emitQuays
 }
 
 func getFilenameWithoutExtension(path string) string {
@@ -179,21 +184,25 @@ func updateSignalContextProperties(signal entities.Signal, props []entities.Yaml
 	for _, item := range props {
 		if item.Name == "Context.Context" && item.Value == signal.Environment {
 			chosenContextIndex = item.Position
+			break
 		}
 	}
 
-	for index, item := range props {
-		if index != chosenContextIndex {
+	for _, item := range props {
+		if item.Position != chosenContextIndex {
 			continue
 		}
 		if item.Name == "Context.Dependencies" {
 			signal.ExecutionDependencies = item.Values
+			continue
 		}
 		if item.Name == "Context.EnvironmentVariables" {
 			signal.EnvironmentVariables = item.DictValues
+			continue
 		}
 		if item.Name == "Context.ContextInitialInputs" {
 			signal.Arguments = item.Values
+			continue
 		}
 	}
 
