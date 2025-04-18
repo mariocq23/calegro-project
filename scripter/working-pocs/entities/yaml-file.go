@@ -2,10 +2,12 @@ package entities
 
 type YamlFile struct {
 	Header struct {
-		Inherits string `yaml:"inherits"`
-		Name     string `yaml:"name"`
+		Inherits string   `yaml:"inherits"`
+		Name     string   `yaml:"name"`
+		Labels   []string `yaml:"labels"`
 	} `yaml:"header"`
 	Configuration struct {
+		Containerize   *bool  `yaml:"containerize"`
 		AgentOrLabel   string `yaml:"agent-or-label"`
 		ExecutionMode  string `yaml:"execution-mode"`
 		BypassSecurity *bool  `yaml:"bypass-security"`

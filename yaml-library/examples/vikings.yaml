@@ -1,6 +1,10 @@
 header:
   inherits: ../../yaml-library/window-program.yaml => window-program
   name: vikings-video-game
+  labels:
+    - vikings
+    - dos-box
+    - window-program
 
 configuration:
   bypass-security: true

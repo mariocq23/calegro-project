@@ -1,6 +1,8 @@
 package entities
 
 type Signal struct {
+	Labels                   []string
+	Containerize             bool
 	Sender                   string
 	Executor                 string
 	ExecutionMode            string
@@ -18,7 +20,8 @@ type Signal struct {
 	OutputMode               string
 	ShutdownSignal           string
 	Arguments                []string
-	Os                       string
+	HostOs                   string
+	SignalOs                 string
 	PackageInstaller         string
 	InstallationDependencies []string
 	ExecutionDependencies    []string

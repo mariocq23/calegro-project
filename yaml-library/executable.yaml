@@ -4,3 +4,6 @@ header:
 
 action:
   shutdown-signal: cascade #single none
+
+configuration:
+  containerize: true
