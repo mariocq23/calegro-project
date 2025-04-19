@@ -96,8 +96,9 @@ func generateYamlProperties(yamls []*entities.YamlFile) ([]entities.YamlProperty
 	overridableSteps := []string{}
 
 	for _, yaml := range yamls {
-
-		yamlProperties = append(yamlProperties, generatePositiveBoolProperty("Configuration.Containerize", yaml.Configuration.Containerize, yaml.Header.Name))
+		if yaml.Configuration.Containerize != nil {
+			yamlProperties = append(yamlProperties, generatePositiveBoolProperty("Configuration.Containerize", yaml.Configuration.Containerize, yaml.Header.Name))
+		}
 		yamlProperties = append(yamlProperties, generateProperty("Configuration.AgentOrLabel", yaml.Configuration.AgentOrLabel, yaml.Header.Name))
 		yamlProperties = append(yamlProperties, generateProperty("Configuration.ContextName", yaml.Configuration.ContextName, yaml.Header.Name))
 		yamlProperties = append(yamlProperties, generateProperty("Configuration.ExecutionMode", yaml.Configuration.ExecutionMode, yaml.Header.Name))
