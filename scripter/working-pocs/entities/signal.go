@@ -3,6 +3,7 @@ package entities
 type Signal struct {
 	Labels                   []string
 	Containerize             bool
+	Vmize                    bool
 	Sender                   string
 	Executor                 string
 	ExecutionMode            string
@@ -17,7 +18,6 @@ type Signal struct {
 	CertificationHub         string
 	Api                      string
 	ExecutablePath           string
-	OutputMode               string
 	ShutdownSignal           string
 	Arguments                []string
 	HostOs                   string

@@ -5,15 +5,16 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"runtime"
 	"scripter/entities"
 	"scripter/utilities"
 )
 
-var osWrapper = utilities.OsWrapper{}
 var security = utilities.Security{}
 var fileReader = utilities.FileReader{}
 var objectHandler = utilities.ObjectHandler{}
+var configuration = utilities.Configuration{}
+var actionHandler = utilities.ActiondHandler{}
+var queueHandler = utilities.QueueHandler{}
 
 func main() {
 
@@ -28,13 +29,11 @@ func main() {
 
 	signal := objectHandler.GenerateSignal(generalProperties, contextProperties, signalSteps, originatorPath, nickname, requireAcknowledge)
 
-	signal.HostOs = runtime.GOOS
+	configuration = configuration.SetConfigurationFromSignal(signal)
 
 	fmt.Printf("%+v\n", signal)
 
-	osWrapper.SetHostOs(signal.HostOs)
-	osWrapper.SetSignalOs(signal.SignalOs)
-	osWrapper.ToggleContainerization(signal.Containerize)
+	interpretSignal(signal)
 }
 
 // Executor Lobby
@@ -44,36 +43,14 @@ func interpretSignal(signal entities.Signal) {
 		return
 	}
 
-	setGeneralConfiguration(signal)
+	configuration.SetGeneralConfiguration(signal)
 
-	setSignalAction(signal)
+	actionHandler.SetSignalAction(signal)
 
-	queueQuaySignals(signal)
+	//queueHandler.QueueQuaySignals(signal)
 
 	//execute("algo", signal.Arguments)
 }
-
-// Prepare signals to be emitted
-func queueQuaySignals(signal entities.Signal) {
-	panic("unimplemented")
-}
-
-// Prepare environment for execution
-func setSignalAction(signal entities.Signal) {
-	installDependencies(signal)
-}
-
-// Install prior required dependencies in environment for execution
-func installDependencies(signal entities.Signal) {
-	panic("unimplemented")
-}
-
-// Set Execution Enviornment
-func setGeneralConfiguration(signal entities.Signal) {
-	panic("unimplemented")
-}
-
-// Validate security of the signal (or bypass it in dev environments)
 
 // Set labels for the signal so a runner can pick it
 func setLabels(labels []string) {

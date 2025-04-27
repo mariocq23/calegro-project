@@ -3,6 +3,6 @@ package entities
 type Relationship int
 
 const (
-	Dependency Relationship = iota
-	Step
+	FlowDependency Relationship = iota
+	StepDependency
 )

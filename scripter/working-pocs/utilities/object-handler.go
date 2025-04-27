@@ -2,6 +2,7 @@ package utilities
 
 import (
 	"reflect"
+	"runtime"
 	"scripter/entities"
 	"strings"
 )
@@ -24,6 +25,9 @@ func (objectHandler ObjectHandler) GenerateYamlProperties(yamls []*entities.Yaml
 		if yaml.Configuration.Containerize != nil {
 			yamlProperties = append(yamlProperties, generatePositiveBoolProperty("Configuration.Containerize", yaml.Configuration.Containerize, yaml.Header.Name))
 		}
+		if yaml.Configuration.Vmize != nil {
+			yamlProperties = append(yamlProperties, generatePositiveBoolProperty("Configuration.Vmize", yaml.Configuration.Vmize, yaml.Header.Name))
+		}
 		yamlProperties = append(yamlProperties, generateProperty("Configuration.AgentOrLabel", yaml.Configuration.AgentOrLabel, yaml.Header.Name))
 		yamlProperties = append(yamlProperties, generateProperty("Configuration.ContextName", yaml.Configuration.ContextName, yaml.Header.Name))
 		yamlProperties = append(yamlProperties, generateProperty("Configuration.ExecutionMode", yaml.Configuration.ExecutionMode, yaml.Header.Name))
@@ -37,7 +41,6 @@ func (objectHandler ObjectHandler) GenerateYamlProperties(yamls []*entities.Yaml
 		yamlProperties = append(yamlProperties, generateProperty("Action.Api", yaml.Action.Api, yaml.Header.Name))
 		yamlProperties = append(yamlProperties, generateProperty("Action.NameOrFullPath", yaml.Action.NameOrFullPath, yaml.Header.Name))
 		yamlProperties = append(yamlProperties, generateProperty("Action.Type", yaml.Action.Type, yaml.Header.Name))
-		yamlProperties = append(yamlProperties, generateProperty("Action.OutputMode", yaml.Action.OutputMode, yaml.Header.Name))
 		yamlProperties = append(yamlProperties, generateProperty("Action.ShutdownSignal", yaml.Action.ShutdownSignal, yaml.Header.Name))
 		yamlProperties = append(yamlProperties, generateProperty("Action.Platform.OsFamily", yaml.Action.Platform.OsFamily, yaml.Header.Name))
 		yamlProperties = append(yamlProperties, generateProperty("Action.Platform.PackageInstaller", yaml.Action.Platform.PackageInstaller, yaml.Header.Name))
@@ -52,9 +55,9 @@ func (objectHandler ObjectHandler) GenerateYamlProperties(yamls []*entities.Yaml
 			yamlContextProperties = append(yamlContextProperties, generateContextArrayProperty("Context.ContextInitialInputs", context.ContextInitialInputs, yaml.Header.Name, index))
 			yamlContextProperties = append(yamlContextProperties, generateContextDictionaryProperty("Context.EnvironmentVariables", stringHandler.StringListToMap(stringHandler.RemoveUnnecessaryStringInArray(context.EnvironmentVariables)), yaml.Header.Name, index))
 		}
-		for index, step := range yaml.Steps {
+		for _, step := range yaml.Steps {
 			if !strings.Contains(step.Step, "$(overridable)") && strings.Trim(step.Step, " ") != "" && !strings.Contains(step.Pointer, "$(overridable)") && strings.Trim(step.Pointer, " ") != "" {
-				signalSteps = append(signalSteps, generateSignalStep(step.Step, step.Pointer, index, yaml.Header.Name))
+				signalSteps = append(signalSteps, generateSignalStep(step.Step, step.Pointer, yaml.Header.Name))
 			} else {
 				overridableSteps = append(overridableSteps, yaml.Header.Name)
 			}
@@ -102,7 +105,7 @@ func generateContextArrayProperty(name string, values []string, templateName str
 	return yamlProperty
 }
 
-func generateSignalStep(step string, pointer string, index int, templateName string) entities.SignalStep {
+func generateSignalStep(step string, pointer string, templateName string) entities.SignalStep {
 	signalStep := entities.SignalStep{
 		Name:    step,
 		Pointer: pointer,
@@ -227,6 +230,7 @@ func (objectHandler ObjectHandler) GenerateSignal(generalProperties []entities.Y
 	sealedProperties := []string{}
 	signal := entities.Signal{}
 	signal.Sender = generalProperties[len(generalProperties)-1].TemplateName
+	signal.HostOs = runtime.GOOS
 	for _, prop := range generalProperties {
 		if stringHandler.ContainsString(sealedProperties, prop.Name) {
 			continue
@@ -259,12 +263,12 @@ func generateEmitQuays(signal entities.Signal, steps []entities.SignalStep) []en
 	emitQuays := make([]entities.EmitQuay, 0)
 
 	for index, executionDependency := range signal.ExecutionDependencies {
-		emitQuay := entities.EmitQuay{Name: stringHandler.GetFilenameWithoutExtension(executionDependency), Path: executionDependency, Relationship: entities.Dependency, Priority: index}
+		emitQuay := entities.EmitQuay{Name: stringHandler.GetFilenameWithoutExtension(executionDependency), Path: executionDependency, Relationship: entities.FlowDependency, Priority: index}
 		emitQuays = append(emitQuays, emitQuay)
 	}
 
 	for index, step := range steps {
-		emitQuay := entities.EmitQuay{Name: stringHandler.GetFilenameWithoutExtension(step.Pointer), Path: step.Pointer, Relationship: entities.Step, Priority: index}
+		emitQuay := entities.EmitQuay{Name: stringHandler.GetFilenameWithoutExtension(step.Pointer), Path: step.Pointer, Relationship: entities.StepDependency, Priority: index}
 		emitQuays = append(emitQuays, emitQuay)
 	}
 
@@ -278,6 +282,9 @@ func updateSignalGeneralProperties(signal entities.Signal, prop entities.YamlPro
 	}
 	if prop.Name == "Configuration.Containerize" {
 		signal.Containerize = *prop.BoolValue
+	}
+	if prop.Name == "Configuration.Vmize" {
+		signal.Vmize = *prop.BoolValue
 	}
 	if prop.Name == "Configuration.AgentOrLabel" && prop.Value != "" {
 		signal.Executor = stringHandler.RemoveUnnecessaryString(prop.Value)
@@ -308,9 +315,6 @@ func updateSignalGeneralProperties(signal entities.Signal, prop entities.YamlPro
 	}
 	if prop.Name == "Action.Type" && prop.Value != "" {
 		signal.Type = stringHandler.RemoveUnnecessaryString(prop.Value)
-	}
-	if prop.Name == "Action.OutputMode" && prop.Value != "" {
-		signal.OutputMode = stringHandler.RemoveUnnecessaryString(prop.Value)
 	}
 	if prop.Name == "Action.ShutdownSignal" && prop.Value != "" {
 		signal.ShutdownSignal = stringHandler.RemoveUnnecessaryString(prop.Value)

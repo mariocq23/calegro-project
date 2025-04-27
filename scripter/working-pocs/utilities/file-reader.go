@@ -10,7 +10,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type FileReader struct{}
+type FileReader struct {
+}
 
 var stringHandler = StringHandler{}
 

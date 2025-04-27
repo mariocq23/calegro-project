@@ -10,7 +10,7 @@
             "request": "launch",
             "mode": "auto",
             "program": "scripter/working-pocs",
-            "args": ["../../yaml-library/examples/vikings.yaml", "c:/originator/originator.yaml"]
+            "args": ["../../yaml-library/examples/vikings.yaml", "c:/originator/originator.yaml", "vikings-process", "yes"]
         }
     ]
 }

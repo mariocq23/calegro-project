@@ -7,11 +7,14 @@ type YamlFile struct {
 		Labels   []string `yaml:"labels"`
 	} `yaml:"header"`
 	Configuration struct {
-		Containerize   *bool  `yaml:"containerize"`
-		AgentOrLabel   string `yaml:"agent-or-label"`
-		ExecutionMode  string `yaml:"execution-mode"`
-		BypassSecurity *bool  `yaml:"bypass-security"`
-		Security       struct {
+		Containerize          *bool  `yaml:"containerize"`
+		ContainerOrchestrator string `yaml:"container-orchestrator"`
+		IdempotentEngine      string `yaml:"idempotent-engine"`
+		Vmize                 *bool  `yaml:"vmize"`
+		AgentOrLabel          string `yaml:"agent-or-label"`
+		ExecutionMode         string `yaml:"execution-mode"`
+		BypassSecurity        *bool  `yaml:"bypass-security"`
+		Security              struct {
 			AuthenticationHub string `yaml:"authentication-hub"`
 			AuthorizationHub  string `yaml:"authorization-hub"`
 			CertificationHub  string `yaml:"certification-hub"`
@@ -22,7 +25,6 @@ type YamlFile struct {
 		NameOrFullPath string   `yaml:"name-or-full-path"`
 		Type           string   `yaml:"type"`
 		Api            string   `yaml:"api"`
-		OutputMode     string   `yaml:"output-mode"`
 		ShutdownSignal string   `yaml:"shutdown-signal"`
 		InitialInputs  []string `yaml:"initial-inputs"` //If a specific context is defined and used, inputs should
 		//be defined there instead
