@@ -13,7 +13,7 @@ configuration:
 action:
   name-or-full-path: dosbox
   platform:
-    os-family: darwin
+    os-family: linux
     package-installer: homebrew
     installation-dependencies:
       - ansible
