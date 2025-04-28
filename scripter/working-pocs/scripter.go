@@ -12,8 +12,7 @@ import (
 var security = utilities.Security{}
 var fileReader = utilities.FileReader{}
 var objectHandler = utilities.ObjectHandler{}
-var configuration = utilities.Configuration{}
-var actionHandler = utilities.ActiondHandler{}
+var configuration = utilities.ActionConfiguration{}
 var queueHandler = utilities.QueueHandler{}
 
 func main() {
@@ -44,8 +43,6 @@ func interpretSignal(signal entities.Signal) {
 	}
 
 	configuration.SetGeneralConfiguration(signal)
-
-	actionHandler.SetSignalAction(signal)
 
 	//queueHandler.QueueQuaySignals(signal)
 
