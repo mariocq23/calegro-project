@@ -1,0 +1,46 @@
+header:
+  inherits:
+  name:
+  labels:
+
+
+configuration:
+  containerize:
+  container-orchestrator:
+  idempotent-engine:
+  vmize:
+  agent-or-label:
+  execution-mode:
+  bypass-security:
+  security:
+    authentication-hub:
+    authorization-hub:
+    certification-hub:
+    context-name:
+
+
+action:
+  name-or-full-path:
+  type:
+  api:
+  shutdown-signal:
+  initial-inputs:
+  environment-variables:
+  platform:
+    os-family:
+    package-installer:
+  installation-dependencies:
+  execution-dependencies:
+
+
+
+contexts:
+  - context:
+    dependencies:
+    context-initial-inputs:
+    environment-variables:
+
+
+steps:
+  - step:
+    pointer:

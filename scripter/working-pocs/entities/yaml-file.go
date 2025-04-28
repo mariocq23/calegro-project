@@ -31,11 +31,11 @@ type YamlFile struct {
 		EnvironmentVariables []string `yaml:"environment-variables"` //If a specific context is defined and used, inputs should
 		//be defined there instead
 		Platform struct {
-			OsFamily                 string   `yaml:"os-family"`
-			PackageInstaller         string   `yaml:"package-installer"`
-			InstallationDependencies []string `yaml:"installation-dependencies"`
+			OsFamily         string `yaml:"os-family"`
+			PackageInstaller string `yaml:"package-installer"`
 		}
-		ExecutionDependencies []string `yaml:"execution-dependencies"`
+		InstallationDependencies []string `yaml:"installation-dependencies"`
+		ExecutionDependencies    []string `yaml:"execution-dependencies"`
 	} `yaml:"action"`
 	Contexts []struct {
 		Context              string   `yaml:"context"`

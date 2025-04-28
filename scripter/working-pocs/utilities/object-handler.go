@@ -44,7 +44,7 @@ func (objectHandler ObjectHandler) GenerateYamlProperties(yamls []*entities.Yaml
 		yamlProperties = append(yamlProperties, generateProperty("Action.ShutdownSignal", yaml.Action.ShutdownSignal, yaml.Header.Name))
 		yamlProperties = append(yamlProperties, generateProperty("Action.Platform.OsFamily", yaml.Action.Platform.OsFamily, yaml.Header.Name))
 		yamlProperties = append(yamlProperties, generateProperty("Action.Platform.PackageInstaller", yaml.Action.Platform.PackageInstaller, yaml.Header.Name))
-		yamlProperties = append(yamlProperties, generateArrayProperty("Action.Platform.InstallationDependencies", yaml.Action.Platform.InstallationDependencies, yaml.Header.Name))
+		yamlProperties = append(yamlProperties, generateArrayProperty("Action.Platform.InstallationDependencies", yaml.Action.InstallationDependencies, yaml.Header.Name))
 		yamlProperties = append(yamlProperties, generateArrayProperty("Action.InitialInputs", yaml.Action.InitialInputs, yaml.Header.Name))
 		yamlProperties = append(yamlProperties, generateArrayProperty("Header.Labels", yaml.Header.Labels, yaml.Header.Name))
 		yamlProperties = append(yamlProperties, generateDictionaryProperty("Action.EnvironmentVariables", stringHandler.StringListToMap(stringHandler.RemoveUnnecessaryStringInArray(yaml.Action.EnvironmentVariables)), yaml.Header.Name))

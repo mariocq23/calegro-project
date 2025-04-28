@@ -156,7 +156,7 @@ func installOsDependencies(signal entities.Signal) {
 
 func installDependencyOnLinux(dep string) any {
 	fmt.Printf("Installing %s with real-time verbose output...\n", dep)
-	cmd := exec.Command("sudo", "apt", "install", dep)
+	cmd := exec.Command("sudo", "apt", "install", dep, "-y")
 
 	cmd.Stdout = os.Stdout // Connect brew's stdout to Go's stdout (your terminal)
 	cmd.Stderr = os.Stderr // Connect brew's stderr to Go's stderr (your terminal)
