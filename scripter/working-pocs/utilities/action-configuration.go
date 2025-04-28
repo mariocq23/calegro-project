@@ -171,6 +171,14 @@ func installDependencyOnLinux(dep string) any {
 }
 
 func isInstalledOnLinux(dep string) bool {
+	if dep == "docker" {
+		cmd := exec.Command(dep, "version")
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			return false // Assume not installed if there's an error checking
+		}
+		return strings.Contains(string(output), dep)
+	}
 	cmd := exec.Command("sudo", "apt", "list", "--versions", dep)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
