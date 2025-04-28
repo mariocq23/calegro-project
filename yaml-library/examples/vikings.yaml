@@ -14,7 +14,7 @@ action:
   name-or-full-path: dosbox
   platform:
     os-family: linux
-    package-installer: homebrew
+    package-installer: apt
     installation-dependencies:
       - ansible
       - dosbox
