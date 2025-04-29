@@ -6,6 +6,7 @@ header:
 
 configuration:
   vmize:
+  vm-controller:
   containerize:
   container-orchestrator:
   enable-idempotency:
@@ -22,7 +23,6 @@ configuration:
     authorization-hub:
     certification-hub:
     context-name:
-
 
 action:
   name-or-full-path:
