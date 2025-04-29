@@ -5,6 +5,8 @@ header:
 configuration:
   agent-or-label: $(overridable) default
   context-name: $(overridable) default
+  container-orchestrator: docker-compose
+  enable-idempotency: true
 
 action:
   environment-variables:

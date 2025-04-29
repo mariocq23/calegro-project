@@ -6,4 +6,4 @@ action:
   shutdown-signal: cascade #single none
 
 configuration:
-  containerize: false
+  containerize: true

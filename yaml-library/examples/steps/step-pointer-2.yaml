@@ -5,10 +5,15 @@ header:
 
 
 configuration:
+  vmize:
   containerize:
   container-orchestrator:
+  enable-idempotency:
   idempotent-engine:
-  vmize:
+  enable-queueing:
+  queue-engine:
+  enable-caching:
+  cache-engine:
   agent-or-label:
   execution-mode:
   bypass-security:

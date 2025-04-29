@@ -5,6 +5,7 @@ header:
 configuration:
   execution-mode: script #file-generator
   vmize: false
+  idempotent-engine: ansible
 
 action:
   initial-inputs: ["-c", "mount c c:\\Games\\DosGames\\lost-vikings", "-c", "c:", "-c", "VIKINGS.EXE"]

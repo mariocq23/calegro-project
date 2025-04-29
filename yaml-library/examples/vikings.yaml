@@ -18,8 +18,9 @@ action:
   installation-dependencies:
     - ansible
     - dosbox
-    - docker
     - docker-compose
+    - rabbitmq-server
+    - redis-server
   execution-dependencies:
     - home/default-folder/prod-action-1
     - home/default-folder/prod-action-2
