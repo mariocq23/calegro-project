@@ -2,6 +2,7 @@ package utilities
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -117,7 +118,7 @@ func installOsDependencies(signal entities.Signal) {
 			if !isInstalledOnMac(dep) {
 				log.Printf("%s is not installed. Proceeding with installation...\n", dep)
 				err :=
-					installDependencyOnMac(dep)
+					installDependencyOnMac(dep, signal.Containerize, signal.Vmize)
 				if err != nil {
 					log.Printf("Failed to install %s.\n", dep)
 				}
@@ -182,7 +183,7 @@ func isInstalledOnLinux(dep string) bool {
 	return strings.Contains(string(output), dep)
 }
 
-func installDependencyOnWindows(dep string) any {
+func installDependencyOnWindows(dep string, containairize bool, vmize bool) any {
 	fmt.Printf("Installing %s with real-time verbose output...\n", dep)
 	cmd := exec.Command("choco", "install", dep)
 
@@ -230,4 +231,38 @@ func installDependencyOnMac(dependency string) error {
 	}
 	fmt.Printf("%s installation finished.\n", dependency)
 	return nil
+}
+
+// stdCopy enhanced to handle string directly.
+func stdCopy(dst io.Writer, dstErr io.Writer, src io.Reader) error {
+	buf := make([]byte, 32*1024)
+	var err error
+	for {
+		nr, er := src.Read(buf)
+		if nr > 0 {
+			var nw int
+			var ew error
+			s := string(buf[0:nr])
+			if strings.Contains(s, "ERROR:") {
+				nw, ew = dstErr.Write(buf[0:nr])
+			} else {
+				nw, ew = dst.Write(buf[0:nr])
+			}
+			if ew != nil {
+				err = ew
+				break
+			}
+			if nr != nw {
+				err = io.ErrShortWrite
+				break
+			}
+		}
+		if er != nil {
+			if er != io.EOF {
+				err = er
+			}
+			break
+		}
+	}
+	return err
 }
