@@ -1,6 +1,7 @@
 package utilities
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log"
@@ -8,6 +9,11 @@ import (
 	"os/exec"
 	"scripter/entities"
 	"strings"
+
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/client"
+	"github.com/docker/docker/pkg/stdcopy"
 )
 
 type ActionConfiguration struct {
@@ -131,7 +137,7 @@ func installOsDependencies(signal entities.Signal) {
 			if !isInstalledOnWindows(dep) {
 				log.Printf("%s is not installed. Proceeding with installation...\n", dep)
 				err :=
-					installDependencyOnWindows(dep)
+					installDependencyOnWindows(dep, true, false)
 				if err != nil {
 					log.Printf("Failed to install %s.\n", dep)
 				}
@@ -152,7 +158,6 @@ func installOsDependencies(signal entities.Signal) {
 		}
 		return
 	}
-
 }
 
 func installDependencyOnLinux(dep string) any {
@@ -169,6 +174,102 @@ func installDependencyOnLinux(dep string) any {
 	}
 	fmt.Printf("%s installation finished.\n", dep)
 	return nil
+}
+
+func installDependencyOnLinuxContainer(dep string) any {
+	ctx := context.Background()
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		log.Fatalf("Failed to create Docker client: %v", err)
+	}
+	defer cli.Close()
+
+	imageName := "ubuntu:latest"
+	containerName := "my-ubuntu-dev"
+
+	// Get the list of dependencies from command-line arguments
+	if len(os.Args) < 2 {
+		fmt.Println("Usage: go run your_script_name.go <dependency1> <dependency2> ...")
+		return
+	}
+	dependencies := os.Args[1:]
+	fmt.Printf("Dependencies to install: %s\n", strings.Join(dependencies, ", "))
+
+	// Pull the Ubuntu image if it doesn't exist
+	_, err = cli.ImagePull(ctx, imageName, types.ImagePullOptions{})
+	if err != nil {
+		log.Fatalf("Failed to pull image '%s': %v", imageName, err)
+	}
+	fmt.Printf("Successfully pulled image '%s'\n", imageName)
+
+	// Container configuration
+	config := &container.Config{
+		Image:     imageName,
+		Tty:       true,
+		OpenStdin: true,
+	}
+
+	// Host configuration (for interactive terminal)
+	hostConfig := &container.HostConfig{}
+
+	// Create the container
+	resp, err := cli.ContainerCreate(ctx, config, hostConfig, nil, nil, containerName)
+	if err != nil {
+		log.Fatalf("Failed to create container '%s': %v", containerName, err)
+	}
+	fmt.Printf("Successfully created container with ID: %s\n", resp.ID)
+
+	// Start the container
+	if err := cli.ContainerStart(ctx, resp.ID, types.ContainerStartOptions{}); err != nil {
+		log.Fatalf("Failed to start container '%s': %v", containerName, err)
+	}
+	fmt.Printf("Successfully started container '%s'\n", containerName)
+
+	// Execute commands to install software
+	commands := []string{
+		"apt-get update",
+		fmt.Sprintf("apt-get install -y %s", strings.Join(dependencies, " ")),
+	}
+
+	for _, cmd := range commands {
+		execConfig := types.ExecConfig{
+			User:         "root",
+			Privileged:   false,
+			Tty:          true,
+			AttachStdout: true,
+			AttachStderr: true,
+			Cmd:          []string{"bash", "-c", cmd},
+		}
+
+		execResp, err := cli.ContainerExecCreate(ctx, resp.ID, execConfig)
+		if err != nil {
+			log.Fatalf("Failed to create exec command for '%s': %v", cmd, err)
+		}
+
+		attachResp, err := cli.ContainerExecAttach(ctx, execResp.ID, types.ExecStartCheck{})
+		if err != nil {
+			log.Fatalf("Failed to attach to exec command for '%s': %v", cmd, err)
+		}
+		defer attachResp.Close()
+
+		// Stream output (you might want to handle this more robustly)
+		_, err = stdcopy.StdCopy(os.Stdout, os.Stderr, attachResp.Reader)
+		if err != nil {
+			log.Printf("Error streaming output for command '%s': %v", cmd, err)
+		}
+
+		exitCode, err := cli.ContainerExecInspect(ctx, execResp.ID)
+		if err != nil {
+			log.Printf("Error inspecting exec command for '%s': %v", cmd, err)
+		}
+		if exitCode.ExitCode != 0 {
+			log.Fatalf("Command '%s' failed with exit code: %d", cmd, exitCode.ExitCode)
+		}
+		fmt.Printf("Successfully executed command: %s\n", cmd)
+	}
+
+	fmt.Println("\nContainer is running with the specified dependencies installed.")
+	fmt.Printf("You can attach to it using: docker attach %s\n", containerName)
 }
 
 func isInstalledOnLinux(dep string) bool {

@@ -9,6 +9,7 @@ header:
 configuration:
   bypass-security: true
   context-name: production-1
+  containerize: true
 
 action:
   name-or-full-path: dosbox
@@ -16,9 +17,7 @@ action:
     os-family: linux
     package-installer: apt
   installation-dependencies:
-    - ansible
     - dosbox
-    - docker-compose
     - rabbitmq-server
     - redis-server
   execution-dependencies:
