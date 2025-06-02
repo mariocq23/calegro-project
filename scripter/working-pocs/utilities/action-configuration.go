@@ -10,17 +10,23 @@ import (
 	"scripter/entities"
 	"strings"
 
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/image" // New import for image-specific types
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
 )
 
 type ActionConfiguration struct {
-	HostOs           string
-	SignalOs         string
-	Containerize     bool
-	Vmize            bool
+	HostOs       string
+	SignalOs     string
+	Containerize bool
+	Executor     struct {
+		Self          bool
+		NameOrAddress string
+		UserName      string
+		Os            string
+		Password      string
+	}
 	Type             string
 	PackageInstaller string
 }
@@ -42,7 +48,6 @@ func (configuration ActionConfiguration) SetConfigurationFromSignal(signal entit
 	configuration.HostOs = signal.HostOs
 	configuration.SignalOs = signal.SignalOs
 	configuration.Containerize = signal.Containerize
-	configuration.Vmize = signal.Vmize
 	configuration.PackageInstaller = signal.PackageInstaller
 
 	return configuration
@@ -60,21 +65,10 @@ func (configuration ActionConfiguration) SetGeneralConfiguration(signal entities
 }
 
 func checkConfigurationPlatformCombination(configuration ActionConfiguration) bool {
-	if configuration.Vmize && configuration.Containerize {
-		return false
-	}
 	if configuration.HostOs == "darwin" && configuration.SignalOs == "windows" && configuration.Containerize {
 		return false
 	}
-	if configuration.HostOs == "darwin" && configuration.SignalOs == "linux" && !configuration.Containerize &&
-		!configuration.Vmize {
-		return false
-	}
 	if configuration.HostOs == "darwin" && !stringHandler.ContainsString(feasiblePackInstallersInMac, configuration.PackageInstaller) {
-		return false
-	}
-	if configuration.HostOs == "linux" && (configuration.SignalOs == "windows" || configuration.SignalOs == "darwin") && (configuration.Containerize ||
-		!configuration.Vmize) {
 		return false
 	}
 	if configuration.HostOs == "linux" && !stringHandler.ContainsString(feasiblePackInstallersInLinux, configuration.PackageInstaller) {
@@ -83,14 +77,7 @@ func checkConfigurationPlatformCombination(configuration ActionConfiguration) bo
 	if configuration.HostOs == "linux" && configuration.SignalOs == "windows" && configuration.Containerize {
 		return false
 	}
-	if configuration.HostOs == "windows" && configuration.SignalOs == "linux" && !configuration.Containerize &&
-		!configuration.Vmize {
-		return false
-	}
 	if configuration.HostOs == "windows" && !stringHandler.ContainsString(feasiblePackInstallersInWindows, configuration.PackageInstaller) {
-		return false
-	}
-	if configuration.HostOs == "windows" && configuration.SignalOs == "darwin" && (configuration.Containerize || !configuration.Vmize) {
 		return false
 	}
 	if configuration.Type == "ui-window-program" && configuration.Containerize {
@@ -120,43 +107,64 @@ func installDependencies(signal entities.Signal) {
 
 func installOsDependencies(signal entities.Signal) {
 	if signal.HostOs == "darwin" {
-		for _, dep := range signal.InstallationDependencies {
-			if !isInstalledOnMac(dep) {
-				log.Printf("%s is not installed. Proceeding with installation...\n", dep)
-				err :=
-					installDependencyOnMac(dep, signal.Containerize, signal.Vmize)
-				if err != nil {
-					log.Printf("Failed to install %s.\n", dep)
-				}
-			}
-		}
+		installDependenciesOnMac(signal.InstallationDependencies, signal.Containerize)
 		return
 	}
 	if signal.HostOs == "windows" {
-		for _, dep := range signal.InstallationDependencies {
-			if !isInstalledOnWindows(dep) {
-				log.Printf("%s is not installed. Proceeding with installation...\n", dep)
-				err :=
-					installDependencyOnWindows(dep, true, false)
-				if err != nil {
-					log.Printf("Failed to install %s.\n", dep)
-				}
-			}
-		}
+		installDependenciesOnWindows(signal.InstallationDependencies, signal.Containerize, signal.SignalOs)
 		return
 	}
 	if signal.HostOs == "linux" {
-		for _, dep := range signal.InstallationDependencies {
-			if !isInstalledOnLinux(dep) {
-				log.Printf("%s is not installed. Proceeding with installation...\n", dep)
-				err :=
-					installDependencyOnLinux(dep)
-				if err != nil {
-					log.Printf("Failed to install %s.\n", dep)
-				}
+		installDependenciesOnLinux(signal.InstallationDependencies, signal.Containerize)
+		return
+
+	}
+}
+
+func installDependenciesOnLinux(dependencies []string, containerize bool) {
+	panic("unimplemented")
+}
+
+func installDependenciesOnWindows(dependencies []string, containerize bool, signalOs string) {
+	if containerize && signalOs == "linux" {
+		installDependenciesOnLinuxContainer(dependencies)
+		return
+	}
+	if containerize && signalOs == "windows" {
+		installDependenciesOnWindowsContainer(dependencies)
+		return
+	}
+
+	for _, dep := range dependencies {
+		if !isInstalledOnWindows(dep) {
+			log.Printf("%s is not installed. Proceeding with installation...\n", dep)
+			err :=
+				installDependencyOnWindows(dep, true, false)
+			if err != nil {
+				log.Printf("Failed to install %s.\n", dep)
 			}
 		}
+	}
+}
+
+func installDependenciesOnWindowsContainer(dependencies []string) {
+	panic("unimplemented")
+}
+
+func installDependenciesOnMac(dependencies []string, containerize bool) {
+	if containerize {
+		installDependenciesOnLinuxContainer(dependencies)
 		return
+	}
+
+	for _, dep := range dependencies {
+		if !isInstalledOnMac(dep) {
+			log.Printf("%s is not installed. Proceeding with installation...\n", dep)
+			err := installDependencyOnMac(dep)
+			if err != nil {
+				log.Printf("Failed to install %s.\n", dep)
+			}
+		}
 	}
 }
 
@@ -176,7 +184,9 @@ func installDependencyOnLinux(dep string) any {
 	return nil
 }
 
-func installDependencyOnLinuxContainer(dep string) any {
+// installDependenciesOnLinuxContainer sets up a Docker container, installs multiple dependencies,
+// and leaves the container running.
+func installDependenciesOnLinuxContainer(dependencies []string) { // Changed signature back to []string
 	ctx := context.Background()
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
@@ -187,29 +197,52 @@ func installDependencyOnLinuxContainer(dep string) any {
 	imageName := "ubuntu:latest"
 	containerName := "my-ubuntu-dev"
 
-	// Get the list of dependencies from command-line arguments
-	if len(os.Args) < 2 {
-		fmt.Println("Usage: go run your_script_name.go <dependency1> <dependency2> ...")
+	if len(dependencies) == 0 {
+		fmt.Println("No dependencies specified for container installation.")
 		return
 	}
-	dependencies := os.Args[1:]
-	fmt.Printf("Dependencies to install: %s\n", strings.Join(dependencies, ", "))
+	fmt.Printf("Dependencies to install in container: %s\n", strings.Join(dependencies, ", "))
+
+	// Check if container already exists and stop/remove it to ensure a clean run
+	// This is optional but good for repeated runs of the script
+	_, err = cli.ContainerInspect(ctx, containerName)
+	if err == nil { // Container exists
+		fmt.Printf("Container '%s' already exists. Stopping and removing...\n", containerName)
+		timeout := 0 // Stop immediately
+		// Corrected: container.StopOptions{}
+		if err := cli.ContainerStop(ctx, containerName, container.StopOptions{Timeout: &timeout}); err != nil {
+			log.Printf("Warning: Failed to stop existing container '%s': %v. Attempting to remove anyway.", containerName, err)
+		}
+		// Corrected: container.RemoveOptions{}
+		if err := cli.ContainerRemove(ctx, containerName, container.RemoveOptions{}); err != nil {
+			log.Fatalf("Failed to remove existing container '%s': %v", containerName, err)
+		}
+		fmt.Printf("Existing container '%s' removed.\n", containerName)
+	}
 
 	// Pull the Ubuntu image if it doesn't exist
-	_, err = cli.ImagePull(ctx, imageName, types.ImagePullOptions{})
+	// Corrected: image.PullOptions{}
+	reader, err := cli.ImagePull(ctx, imageName, image.PullOptions{})
 	if err != nil {
 		log.Fatalf("Failed to pull image '%s': %v", imageName, err)
 	}
+	defer reader.Close()
+	// Read from the reader to wait for the pull to complete and see progress
+	_, _ = stdcopy.StdCopy(os.Stdout, os.Stderr, reader) // Copy pull output to stdout/stderr
 	fmt.Printf("Successfully pulled image '%s'\n", imageName)
 
 	// Container configuration
+	// Corrected: container.Config{} (already correct, but clarifying)
 	config := &container.Config{
-		Image:     imageName,
-		Tty:       true,
-		OpenStdin: true,
+		Image:        imageName,
+		Tty:          true, // Keep TTY for interactive shell if needed
+		OpenStdin:    true, // Keep OpenStdin for interactive shell if needed
+		AttachStdout: true, // Important for `docker logs` and exec command output
+		AttachStderr: true, // Important for `docker logs` and exec command output
 	}
 
 	// Host configuration (for interactive terminal)
+	// Corrected: container.HostConfig{} (already correct, but clarifying)
 	hostConfig := &container.HostConfig{}
 
 	// Create the container
@@ -220,7 +253,8 @@ func installDependencyOnLinuxContainer(dep string) any {
 	fmt.Printf("Successfully created container with ID: %s\n", resp.ID)
 
 	// Start the container
-	if err := cli.ContainerStart(ctx, resp.ID, types.ContainerStartOptions{}); err != nil {
+	// Corrected: container.StartOptions{}
+	if err := cli.ContainerStart(ctx, resp.ID, container.StartOptions{}); err != nil {
 		log.Fatalf("Failed to start container '%s': %v", containerName, err)
 	}
 	fmt.Printf("Successfully started container '%s'\n", containerName)
@@ -228,14 +262,15 @@ func installDependencyOnLinuxContainer(dep string) any {
 	// Execute commands to install software
 	commands := []string{
 		"apt-get update",
-		fmt.Sprintf("apt-get install -y %s", strings.Join(dependencies, " ")),
+		fmt.Sprintf("DEBIAN_FRONTEND=noninteractive apt-get install -y %s", strings.Join(dependencies, " ")),
 	}
 
 	for _, cmd := range commands {
-		execConfig := types.ExecConfig{
+		// Corrected: container.ExecOptions{}
+		execConfig := container.ExecOptions{
 			User:         "root",
-			Privileged:   false,
-			Tty:          true,
+			Privileged:   false, // Exec inside container typically doesn't need privileged
+			Tty:          true,  // Attach TTY for clearer output (optional, but good for interactive)
 			AttachStdout: true,
 			AttachStderr: true,
 			Cmd:          []string{"bash", "-c", cmd},
@@ -246,30 +281,31 @@ func installDependencyOnLinuxContainer(dep string) any {
 			log.Fatalf("Failed to create exec command for '%s': %v", cmd, err)
 		}
 
-		attachResp, err := cli.ContainerExecAttach(ctx, execResp.ID, types.ExecStartCheck{})
+		// Corrected: container.ExecAttachOptions{}
+		attachResp, err := cli.ContainerExecAttach(ctx, execResp.ID, container.ExecAttachOptions{})
 		if err != nil {
 			log.Fatalf("Failed to attach to exec command for '%s': %v", cmd, err)
 		}
-		defer attachResp.Close()
-
-		// Stream output (you might want to handle this more robustly)
 		_, err = stdcopy.StdCopy(os.Stdout, os.Stderr, attachResp.Reader)
 		if err != nil {
-			log.Printf("Error streaming output for command '%s': %v", cmd, err)
+			log.Printf("Warning: Error streaming output for command '%s': %v", cmd, err)
 		}
+		attachResp.Close() // Close the attach stream immediately after copying to ensure resources are released
 
-		exitCode, err := cli.ContainerExecInspect(ctx, execResp.ID)
+		exitCodeResp, err := cli.ContainerExecInspect(ctx, execResp.ID)
 		if err != nil {
-			log.Printf("Error inspecting exec command for '%s': %v", cmd, err)
+			log.Fatalf("Error inspecting exec command for '%s': %v", cmd, err)
 		}
-		if exitCode.ExitCode != 0 {
-			log.Fatalf("Command '%s' failed with exit code: %d", cmd, exitCode.ExitCode)
+		if exitCodeResp.ExitCode != 0 {
+			// Corrected the order of arguments in Fatalf to match the format string
+			log.Fatalf("Command '%s' failed with exit code: %d", cmd, exitCodeResp.ExitCode)
 		}
 		fmt.Printf("Successfully executed command: %s\n", cmd)
 	}
 
 	fmt.Println("\nContainer is running with the specified dependencies installed.")
 	fmt.Printf("You can attach to it using: docker attach %s\n", containerName)
+	fmt.Printf("To stop and remove it: docker stop %s && docker rm %s\n", containerName, containerName)
 }
 
 func isInstalledOnLinux(dep string) bool {
@@ -319,6 +355,7 @@ func isInstalledOnMac(dep string) bool {
 }
 
 func installDependencyOnMac(dependency string) error {
+
 	fmt.Printf("Installing %s with real-time verbose output...\n", dependency)
 	cmd := exec.Command("brew", "install", dependency)
 

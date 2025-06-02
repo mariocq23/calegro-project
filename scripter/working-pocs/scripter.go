@@ -11,8 +11,8 @@ import (
 	"scripter/utilities"
 	"strings"
 
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
 )
 
@@ -55,7 +55,7 @@ func main2() {
 
 	// 3. Pull the Docker image.  We'll use a Windows image that has Chocolatey.
 	//   Make sure the base image you select has chocolatey.
-	reader, err := cli.ImagePull(ctx, "mcr.microsoft.com/windows/servercore:ltsc2022", types.ImagePullOptions{})
+	reader, err := cli.ImagePull(ctx, "mcr.microsoft.com/windows/servercore:ltsc2022", image.PullOptions{})
 	if err != nil {
 		log.Fatalf("Failed to pull image: %v", err)
 	}

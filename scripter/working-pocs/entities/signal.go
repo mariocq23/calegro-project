@@ -3,7 +3,6 @@ package entities
 type Signal struct {
 	Labels                   []string
 	Containerize             bool
-	Vmize                    bool
 	Sender                   string
 	Executor                 string
 	ExecutionMode            string
@@ -22,6 +21,7 @@ type Signal struct {
 	Arguments                []string
 	HostOs                   string
 	SignalOs                 string
+	ExecutorOs               string
 	PackageInstaller         string
 	InstallationDependencies []string
 	ExecutionDependencies    []string

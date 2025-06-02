@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"scripter/entities"
+	"scripter/entities/versions"
 
 	"strings"
 
@@ -17,9 +18,9 @@ var stringHandler = StringHandler{}
 
 //File reader
 
-func (fileReader FileReader) ReadAllYamls(path string) []*entities.YamlFile {
+func (fileReader FileReader) ReadAllYamls(path string) []*versions.YamlFile_Generic_01 {
 
-	yamlsArray := make([]*entities.YamlFile, 0)
+	yamlsArray := make([]*versions.YamlFile_Generic_01, 0)
 
 	yaml := fileReader.ReadYaml(path)
 
@@ -38,14 +39,14 @@ func (fileReader FileReader) ReadAllYamls(path string) []*entities.YamlFile {
 
 //File reader
 
-func (fileReader FileReader) ReadYaml(filePath string) *entities.YamlFile {
+func (fileReader FileReader) ReadYaml(filePath string) *versions.YamlFile_Generic_01 {
 
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	var yamlFile entities.YamlFile
+	var yamlFile versions.YamlFile_Generic_01
 	err = yaml.Unmarshal(data, &yamlFile)
 	if err != nil {
 		log.Fatal(err)
@@ -54,7 +55,7 @@ func (fileReader FileReader) ReadYaml(filePath string) *entities.YamlFile {
 	return &yamlFile
 }
 
-func (fileReader FileReader) ObtainAllSourceAncestors(templateName string, yamls []*entities.YamlFile) []string {
+func (fileReader FileReader) ObtainAllSourceAncestors(templateName string, yamls []*versions.YamlFile_Generic_01) []string {
 	yamlsArray := make([]string, 0)
 
 	template := findYamlByName(yamls, templateName)
@@ -72,7 +73,7 @@ func (fileReader FileReader) ObtainAllSourceAncestors(templateName string, yamls
 
 }
 
-func findYamlByName(yamls []*entities.YamlFile, templateName string) *entities.YamlFile {
+func findYamlByName(yamls []*versions.YamlFile_Generic_01, templateName string) *versions.YamlFile_Generic_01 {
 	for _, yaml := range yamls {
 		if yaml.Header.Name == templateName {
 			return yaml

@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"runtime"
 	"scripter/entities"
+	"scripter/entities/versions"
 	"strings"
 )
 
@@ -13,7 +14,7 @@ var fileReader = FileReader{}
 
 //Object Array Generator - More context logic related
 
-func (objectHandler ObjectHandler) GenerateYamlProperties(yamls []*entities.YamlFile) ([]entities.YamlProperty, []entities.YamlContextProperty, []entities.SignalStep) {
+func (objectHandler ObjectHandler) GenerateYamlProperties(yamls []*versions.YamlFile_Generic_01) ([]entities.YamlProperty, []entities.YamlContextProperty, []entities.SignalStep) {
 
 	yamlProperties := []entities.YamlProperty{}
 	yamlContextProperties := []entities.YamlContextProperty{}
@@ -24,9 +25,6 @@ func (objectHandler ObjectHandler) GenerateYamlProperties(yamls []*entities.Yaml
 	for _, yaml := range yamls {
 		if yaml.Configuration.Containerize != nil {
 			yamlProperties = append(yamlProperties, generatePositiveBoolProperty("Configuration.Containerize", yaml.Configuration.Containerize, yaml.Header.Name))
-		}
-		if yaml.Configuration.Vmize != nil {
-			yamlProperties = append(yamlProperties, generatePositiveBoolProperty("Configuration.Vmize", yaml.Configuration.Vmize, yaml.Header.Name))
 		}
 		yamlProperties = append(yamlProperties, generateProperty("Configuration.AgentOrLabel", yaml.Configuration.AgentOrLabel, yaml.Header.Name))
 		yamlProperties = append(yamlProperties, generateProperty("Configuration.ContextName", yaml.Configuration.ContextName, yaml.Header.Name))
@@ -49,33 +47,20 @@ func (objectHandler ObjectHandler) GenerateYamlProperties(yamls []*entities.Yaml
 		yamlProperties = append(yamlProperties, generateArrayProperty("Header.Labels", yaml.Header.Labels, yaml.Header.Name))
 		yamlProperties = append(yamlProperties, generateDictionaryProperty("Action.EnvironmentVariables", stringHandler.StringListToMap(stringHandler.RemoveUnnecessaryStringInArray(yaml.Action.EnvironmentVariables)), yaml.Header.Name))
 
-		for index, context := range yaml.Contexts {
+		for index, context := range yaml.Environment.Contexts {
 			yamlContextProperties = append(yamlContextProperties, generateContextProperty("Context.Context", context.Context, yaml.Header.Name, index))
 			yamlContextProperties = append(yamlContextProperties, generateContextArrayProperty("Context.Dependencies", context.Dependencies, yaml.Header.Name, index))
 			yamlContextProperties = append(yamlContextProperties, generateContextArrayProperty("Context.ContextInitialInputs", context.ContextInitialInputs, yaml.Header.Name, index))
 			yamlContextProperties = append(yamlContextProperties, generateContextDictionaryProperty("Context.EnvironmentVariables", stringHandler.StringListToMap(stringHandler.RemoveUnnecessaryStringInArray(context.EnvironmentVariables)), yaml.Header.Name, index))
 		}
-		for _, step := range yaml.Steps {
-			if !strings.Contains(step.Step, "$(overridable)") && strings.Trim(step.Step, " ") != "" && !strings.Contains(step.Pointer, "$(overridable)") && strings.Trim(step.Pointer, " ") != "" {
-				signalSteps = append(signalSteps, generateSignalStep(step.Step, step.Pointer, yaml.Header.Name))
-			} else {
-				overridableSteps = append(overridableSteps, yaml.Header.Name)
-			}
-		}
 
-		if len(yaml.Steps) == 0 {
+		if yaml.Steps.CanOverwrite != nil && (*yaml.Steps.CanOverwrite || len(yaml.Steps.List) == 0) {
 			overridableSteps = append(overridableSteps, yaml.Header.Name)
+		} else {
+			signalSteps = append(signalSteps, generateSignalSteps(yaml)...)
 		}
+
 	}
-
-	//"$(append)"
-	//for _, step := range overridableSteps {
-	//if   {
-	//	finalSignalSteps = append(finalSignalSteps, step)
-	//}
-	//}
-
-	//"$(append)"
 
 	for _, step := range signalSteps {
 		ancestors := fileReader.ObtainAllSourceAncestors(step.Source, yamls)
@@ -94,6 +79,19 @@ func (objectHandler ObjectHandler) GenerateYamlProperties(yamls []*entities.Yaml
 	return yamlProperties, yamlContextProperties, finalSignalSteps
 }
 
+func generateSignalSteps(yaml *versions.YamlFile_Generic_01) []entities.SignalStep {
+	signalSteps := []entities.SignalStep{}
+	for _, step := range yaml.Steps.List {
+		signalStep := entities.SignalStep{
+			Name:    step.Step,
+			Pointer: step.Pointer,
+			Source:  yaml.Header.Name,
+		}
+		signalSteps = append(signalSteps, signalStep)
+	}
+	return signalSteps
+}
+
 func generateContextArrayProperty(name string, values []string, templateName string, index int) entities.YamlContextProperty {
 	yamlProperty := entities.YamlContextProperty{Name: name, Values: values, TemplateName: templateName, Position: index}
 	if !stringHandler.ContainsString(values, "$(overridable)") && values != nil && len(values) > 0 {
@@ -103,16 +101,6 @@ func generateContextArrayProperty(name string, values []string, templateName str
 		yamlProperty.Default = true
 	}
 	return yamlProperty
-}
-
-func generateSignalStep(step string, pointer string, templateName string) entities.SignalStep {
-	signalStep := entities.SignalStep{
-		Name:    step,
-		Pointer: pointer,
-		Source:  templateName,
-	}
-
-	return signalStep
 }
 
 func appendNew(steps []entities.SignalStep, currentStep entities.SignalStep) []entities.SignalStep {
@@ -282,9 +270,6 @@ func updateSignalGeneralProperties(signal entities.Signal, prop entities.YamlPro
 	}
 	if prop.Name == "Configuration.Containerize" {
 		signal.Containerize = *prop.BoolValue
-	}
-	if prop.Name == "Configuration.Vmize" {
-		signal.Vmize = *prop.BoolValue
 	}
 	if prop.Name == "Configuration.AgentOrLabel" && prop.Value != "" {
 		signal.Executor = stringHandler.RemoveUnnecessaryString(prop.Value)
