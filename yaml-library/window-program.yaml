@@ -3,8 +3,11 @@ header:
   name: window-program
 
 configuration:
-  agent-or-label: $(overridable) default
-  context-name: $(overridable) default
+  executor:
+    os:
+    user:
+    host:
+  context-name: default
   container-orchestrator: docker-compose
   enable-idempotency: true
 

@@ -3,7 +3,7 @@ module scripter
 go 1.24.3
 
 require (
-	github.com/docker/docker v28.2.3
+	github.com/docker/docker v28.2.2+incompatible
 	gopkg.in/yaml.v3 v3.0.1
 )
 

@@ -5,8 +5,6 @@ header:
 
 
 configuration:
-  vmize:
-  vm-controller:
   containerize:
   container-orchestrator:
   enable-idempotency:
@@ -15,7 +13,6 @@ configuration:
   queue-engine:
   enable-caching:
   cache-engine:
-  agent-or-label:
   execution-mode:
   bypass-security:
   security:

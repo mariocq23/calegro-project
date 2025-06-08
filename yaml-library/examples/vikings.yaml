@@ -10,6 +10,7 @@ configuration:
   bypass-security: true
   context-name: production-1
   containerize: true
+  can-overwrite: false
 
 action:
   name-or-full-path: dosbox
@@ -24,26 +25,32 @@ action:
     - home/default-folder/prod-action-1
     - home/default-folder/prod-action-2
     - home/default-folder/prod-action-3
+  execute-locally: true
+  can-overwrite: false
 
-contexts:
-  - context: production-1 
-    dependencies:
-      - home/prod-folder/prod-action-1
-      - home/prod-folder/prod-action-2
-      - home/prod-folder/prod-action-3
-    context-initial-inputs: ["-c", "mount c c:\\Games\\DosGames\\lost-vikings", "-c", "c:", "-c", "VIKINGS2.EXE"]
-    environment-variables:
-      - (work-folder) home/workfolder
-  - context: production-2
-    dependencies:
-      - home/prod-folder-2/prod-action-1
-      - home/prod-folder-2/prod-action-2
-    context-initial-inputs:
-    environment-variables:
-      - (work-folder) home/work-folder
+environment:
+  contexts:
+    - context: production-1 
+      dependencies:
+        - home/prod-folder/prod-action-1
+        - home/prod-folder/prod-action-2
+        - home/prod-folder/prod-action-3
+      context-initial-inputs: ["-c", "mount c c:\\Games\\DosGames\\lost-vikings", "-c", "c:", "-c", "VIKINGS2.EXE"]
+      environment-variables:
+        - (work-folder) home/workfolder
+    - context: production-2
+      dependencies:
+        - home/prod-folder-2/prod-action-1
+        - home/prod-folder-2/prod-action-2
+      context-initial-inputs:
+      environment-variables:
+        - (work-folder) home/work-folder
+  can-overwrite: false
 
 steps: #steps related to the very action (when one solely step may be too complex), otherwise place in dependency list 
-  - step: step-1
-    pointer: pointer-1
-  - step: step-2
-    pointer: pointer-2
+  list:
+    - step: step-1
+      pointer: pointer-1
+    - step: step-2
+      pointer: pointer-2
+  can-overwrite: false
