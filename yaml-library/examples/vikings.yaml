@@ -9,7 +9,7 @@ header:
 configuration:
   bypass-security: true
   context-name: production-1
-  containerize: true
+  containerize: false
   can-overwrite: false
 
 action:

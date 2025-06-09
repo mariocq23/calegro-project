@@ -14,44 +14,45 @@ var fileReader = FileReader{}
 
 //Object Array Generator - More context logic related
 
-func (objectHandler ObjectHandler) GenerateYamlProperties(yamls []*versions.YamlFile_Generic_01) ([]entities.YamlProperty, []entities.YamlContextProperty, []entities.SignalStep) {
+func (objectHandler ObjectHandler) GenerateYamlProperties(yamls []*versions.YamlFile_Generic_01) ([]entities.YamlProperty, []entities.YamlContextProperty, []entities.SignalStep, []entities.Label) {
 
 	yamlProperties := []entities.YamlProperty{}
 	yamlContextProperties := []entities.YamlContextProperty{}
 	signalSteps := []entities.SignalStep{}
 	finalSignalSteps := []entities.SignalStep{}
 	overridableSteps := []string{}
+	labels := []entities.Label{}
 
 	for _, yaml := range yamls {
 		if yaml.Configuration.Containerize != nil {
-			yamlProperties = append(yamlProperties, generatePositiveBoolProperty("Configuration.Containerize", yaml.Configuration.Containerize, yaml.Header.Name))
+			yamlProperties = append(yamlProperties, generateBoolProperty("Configuration.Containerize", yaml.Configuration.Containerize, yaml.Header.Name, yaml.Configuration.CanOverwrite))
 		}
-		yamlProperties = append(yamlProperties, generateProperty("Configuration.AgentOrLabel", yaml.Configuration.AgentOrLabel, yaml.Header.Name))
-		yamlProperties = append(yamlProperties, generateProperty("Configuration.ContextName", yaml.Configuration.ContextName, yaml.Header.Name))
-		yamlProperties = append(yamlProperties, generateProperty("Configuration.ExecutionMode", yaml.Configuration.ExecutionMode, yaml.Header.Name))
+		yamlProperties = append(yamlProperties, generateProperty("Configuration.AgentOrLabel", yaml.Configuration.AgentOrLabel, yaml.Header.Name, yaml.Configuration.CanOverwrite))
+		yamlProperties = append(yamlProperties, generateProperty("Configuration.ContextName", yaml.Configuration.ContextName, yaml.Header.Name, yaml.Configuration.CanOverwrite))
+		yamlProperties = append(yamlProperties, generateProperty("Configuration.ExecutionMode", yaml.Configuration.ExecutionMode, yaml.Header.Name, yaml.Configuration.CanOverwrite))
 		if yaml.Configuration.BypassSecurity != nil {
-			yamlProperties = append(yamlProperties, generateNegativeBoolProperty("Configuration.BypassSecurity", yaml.Configuration.BypassSecurity, yaml.Header.Name))
+			yamlProperties = append(yamlProperties, generateBoolProperty("Configuration.BypassSecurity", yaml.Configuration.BypassSecurity, yaml.Header.Name, yaml.Configuration.CanOverwrite))
 		}
-		yamlProperties = append(yamlProperties, generateProperty("Configuration.Security.CertificationHub", yaml.Configuration.Security.CertificationHub, yaml.Header.Name))
-		yamlProperties = append(yamlProperties, generateProperty("Configuration.Security.AuthenticationHub", yaml.Configuration.Security.AuthenticationHub, yaml.Header.Name))
-		yamlProperties = append(yamlProperties, generateProperty("Configuration.Security.AuthorizationHub", yaml.Configuration.Security.AuthorizationHub, yaml.Header.Name))
+		yamlProperties = append(yamlProperties, generateProperty("Configuration.Security.CertificationHub", yaml.Configuration.Security.CertificationHub, yaml.Header.Name, yaml.Configuration.CanOverwrite))
+		yamlProperties = append(yamlProperties, generateProperty("Configuration.Security.AuthenticationHub", yaml.Configuration.Security.AuthenticationHub, yaml.Header.Name, yaml.Configuration.CanOverwrite))
+		yamlProperties = append(yamlProperties, generateProperty("Configuration.Security.AuthorizationHub", yaml.Configuration.Security.AuthorizationHub, yaml.Header.Name, yaml.Configuration.CanOverwrite))
 
-		yamlProperties = append(yamlProperties, generateProperty("Action.Api", yaml.Action.Api, yaml.Header.Name))
-		yamlProperties = append(yamlProperties, generateProperty("Action.NameOrFullPath", yaml.Action.NameOrFullPath, yaml.Header.Name))
-		yamlProperties = append(yamlProperties, generateProperty("Action.Type", yaml.Action.Type, yaml.Header.Name))
-		yamlProperties = append(yamlProperties, generateProperty("Action.ShutdownSignal", yaml.Action.ShutdownSignal, yaml.Header.Name))
-		yamlProperties = append(yamlProperties, generateProperty("Action.Platform.OsFamily", yaml.Action.Platform.OsFamily, yaml.Header.Name))
-		yamlProperties = append(yamlProperties, generateProperty("Action.Platform.PackageInstaller", yaml.Action.Platform.PackageInstaller, yaml.Header.Name))
-		yamlProperties = append(yamlProperties, generateArrayProperty("Action.Platform.InstallationDependencies", yaml.Action.InstallationDependencies, yaml.Header.Name))
-		yamlProperties = append(yamlProperties, generateArrayProperty("Action.InitialInputs", yaml.Action.InitialInputs, yaml.Header.Name))
-		yamlProperties = append(yamlProperties, generateArrayProperty("Header.Labels", yaml.Header.Labels, yaml.Header.Name))
-		yamlProperties = append(yamlProperties, generateDictionaryProperty("Action.EnvironmentVariables", stringHandler.StringListToMap(stringHandler.RemoveUnnecessaryStringInArray(yaml.Action.EnvironmentVariables)), yaml.Header.Name))
+		yamlProperties = append(yamlProperties, generateProperty("Action.Api", yaml.Action.Api, yaml.Header.Name, yaml.Action.CanOverwrite))
+		yamlProperties = append(yamlProperties, generateProperty("Action.NameOrFullPath", yaml.Action.NameOrFullPath, yaml.Header.Name, yaml.Action.CanOverwrite))
+		yamlProperties = append(yamlProperties, generateProperty("Action.Type", yaml.Action.Type, yaml.Header.Name, yaml.Action.CanOverwrite))
+		yamlProperties = append(yamlProperties, generateProperty("Action.ShutdownSignal", yaml.Action.ShutdownSignal, yaml.Header.Name, yaml.Action.CanOverwrite))
+		yamlProperties = append(yamlProperties, generateProperty("Action.Platform.OsFamily", yaml.Action.Platform.OsFamily, yaml.Header.Name, yaml.Action.CanOverwrite))
+		yamlProperties = append(yamlProperties, generateProperty("Action.Platform.PackageInstaller", yaml.Action.Platform.PackageInstaller, yaml.Header.Name, yaml.Action.CanOverwrite))
+		yamlProperties = append(yamlProperties, generateArrayProperty("Action.Platform.InstallationDependencies", yaml.Action.InstallationDependencies, yaml.Header.Name, yaml.Action.CanOverwrite))
+		yamlProperties = append(yamlProperties, generateArrayProperty("Action.InitialInputs", yaml.Action.InitialInputs, yaml.Header.Name, yaml.Action.CanOverwrite))
+		labels = append(labels, generateLabels(yaml.Header.Labels, yaml.Header.Name)...)
+		yamlProperties = append(yamlProperties, generateDictionaryProperty("Action.EnvironmentVariables", stringHandler.StringListToMap(stringHandler.RemoveUnnecessaryStringInArray(yaml.Action.EnvironmentVariables)), yaml.Header.Name, yaml.Action.CanOverwrite))
 
 		for index, context := range yaml.Environment.Contexts {
-			yamlContextProperties = append(yamlContextProperties, generateContextProperty("Context.Context", context.Context, yaml.Header.Name, index))
-			yamlContextProperties = append(yamlContextProperties, generateContextArrayProperty("Context.Dependencies", context.Dependencies, yaml.Header.Name, index))
-			yamlContextProperties = append(yamlContextProperties, generateContextArrayProperty("Context.ContextInitialInputs", context.ContextInitialInputs, yaml.Header.Name, index))
-			yamlContextProperties = append(yamlContextProperties, generateContextDictionaryProperty("Context.EnvironmentVariables", stringHandler.StringListToMap(stringHandler.RemoveUnnecessaryStringInArray(context.EnvironmentVariables)), yaml.Header.Name, index))
+			yamlContextProperties = append(yamlContextProperties, generateContextProperty("Environment.Context.Context", context.Context, yaml.Header.Name, index, yaml.Environment.CanOverwrite))
+			yamlContextProperties = append(yamlContextProperties, generateContextArrayProperty("Environment.Context.Dependencies", context.Dependencies, yaml.Header.Name, index, yaml.Environment.CanOverwrite))
+			yamlContextProperties = append(yamlContextProperties, generateContextArrayProperty("Environment.Context.ContextInitialInputs", context.ContextInitialInputs, yaml.Header.Name, index, yaml.Environment.CanOverwrite))
+			yamlContextProperties = append(yamlContextProperties, generateContextDictionaryProperty("Environment.Context.EnvironmentVariables", stringHandler.StringListToMap(stringHandler.RemoveUnnecessaryStringInArray(context.EnvironmentVariables)), yaml.Header.Name, index, yaml.Environment.CanOverwrite))
 		}
 
 		if yaml.Steps.CanOverwrite != nil && (*yaml.Steps.CanOverwrite || len(yaml.Steps.List) == 0) {
@@ -76,7 +77,19 @@ func (objectHandler ObjectHandler) GenerateYamlProperties(yamls []*versions.Yaml
 		}
 	}
 
-	return yamlProperties, yamlContextProperties, finalSignalSteps
+	return yamlProperties, yamlContextProperties, finalSignalSteps, labels
+}
+
+func generateLabels(rawlabels []string, templateName string) []entities.Label {
+	labels := []entities.Label{}
+	for _, rawLabel := range rawlabels {
+		label := entities.Label{
+			Label:    rawLabel,
+			Template: templateName,
+		}
+		labels = append(labels, label)
+	}
+	return labels
 }
 
 func generateSignalSteps(yaml *versions.YamlFile_Generic_01) []entities.SignalStep {
@@ -92,10 +105,10 @@ func generateSignalSteps(yaml *versions.YamlFile_Generic_01) []entities.SignalSt
 	return signalSteps
 }
 
-func generateContextArrayProperty(name string, values []string, templateName string, index int) entities.YamlContextProperty {
+func generateContextArrayProperty(name string, values []string, templateName string, index int, override *bool) entities.YamlContextProperty {
 	yamlProperty := entities.YamlContextProperty{Name: name, Values: values, TemplateName: templateName, Position: index}
-	if !stringHandler.ContainsString(values, "$(overridable)") && values != nil && len(values) > 0 {
-		yamlProperty.Sealed = true
+	if override != nil {
+		yamlProperty.Sealed = !*override
 	}
 	if stringHandler.ContainsString(values, "default") {
 		yamlProperty.Default = true
@@ -124,11 +137,12 @@ func containsObject(steps []entities.SignalStep, step entities.SignalStep) bool 
 	return false
 }
 
-func generateContextDictionaryProperty(name string, values map[string]string, templateName string, index int) entities.YamlContextProperty {
+func generateContextDictionaryProperty(name string, values map[string]string, templateName string, index int, override *bool) entities.YamlContextProperty {
 	yamlProperty := entities.YamlContextProperty{Name: name, DictValues: values, TemplateName: templateName, Position: index}
-	if !containsKeyValuePair(values, "$(overridable)") && values != nil && len(values) > 0 {
-		yamlProperty.Sealed = true
+	if override != nil {
+		yamlProperty.Sealed = !*override
 	}
+
 	if containsKeyValuePair(values, "default") {
 		yamlProperty.Default = true
 	}
@@ -146,30 +160,20 @@ func containsKeyValuePair(values map[string]string, target string) bool {
 
 //Objectj generator - more context logic related
 
-func generateNegativeBoolProperty(name string, value *bool, templateName string) entities.YamlProperty {
+func generateBoolProperty(name string, value *bool, templateName string, override *bool) entities.YamlProperty {
 	yamlProperty := entities.YamlProperty{Name: name, BoolValue: value, TemplateName: templateName}
-	if value != nil && !*value && name == "Configuration.BypassSecurity" {
-		yamlProperty.Sealed = true
-		yamlProperty.Default = true
-	}
-	return yamlProperty
-}
-
-func generatePositiveBoolProperty(name string, value *bool, templateName string) entities.YamlProperty {
-	yamlProperty := entities.YamlProperty{Name: name, BoolValue: value, TemplateName: templateName}
-	if value != nil && *value && name == "Configuration.Containerize" {
-		yamlProperty.Sealed = true
-		yamlProperty.Default = true
+	if override != nil && (name == "Configuration.BypassSecurity" || name == "Configuration.Containerize") {
+		yamlProperty.Sealed = !*override
 	}
 	return yamlProperty
 }
 
 //Objectj generator - more context logic related
 
-func generateProperty(name string, value string, templateName string) entities.YamlProperty {
+func generateProperty(name string, value string, templateName string, override *bool) entities.YamlProperty {
 	yamlProperty := entities.YamlProperty{Name: name, Value: value, TemplateName: templateName}
-	if !strings.Contains(value, "$(overridable)") && value != "" {
-		yamlProperty.Sealed = true
+	if override != nil {
+		yamlProperty.Sealed = !*override
 	}
 	if strings.Contains(value, "default") {
 		yamlProperty.Default = true
@@ -179,42 +183,67 @@ func generateProperty(name string, value string, templateName string) entities.Y
 
 //Objectj generator - more context logic related
 
-func generateArrayProperty(name string, values []string, templateName string) entities.YamlProperty {
+func generateArrayProperty(name string, values []string, templateName string, override *bool) entities.YamlProperty {
 	yamlProperty := entities.YamlProperty{Name: name, Values: values, TemplateName: templateName}
-	if !stringHandler.ContainsString(values, "$(overridable)") && values != nil && len(values) > 0 {
-		yamlProperty.Sealed = true
+
+	if override != nil {
+		yamlProperty.Sealed = !*override
 	}
+
 	if !stringHandler.ContainsString(values, "default") {
 		yamlProperty.Default = true
 	}
 	return yamlProperty
 }
 
-func generateContextProperty(name string, value string, templateName string, index int) entities.YamlContextProperty {
+func generateContextProperty(name string, value string, templateName string, index int, override *bool) entities.YamlContextProperty {
 	yamlProperty := entities.YamlContextProperty{Name: name, Value: value, TemplateName: templateName, Position: index}
-	if !strings.Contains(value, "$(overridable)") && value != "" {
-		yamlProperty.Sealed = true
+
+	if override != nil {
+		yamlProperty.Sealed = !*override
 	}
+
 	if strings.Contains(value, "default") {
 		yamlProperty.Default = true
 	}
 	return yamlProperty
 }
 
+func getDistinctLabels(labels []entities.Label) []string {
+	// Use a map to store unique labels encountered.
+	// The value (empty struct{}) is a common idiom for a set in Go,
+	// as it takes up no memory.
+	seenLabels := make(map[string]struct{})
+	var distinctLabels []string // This slice will store the distinct labels
+
+	for _, l := range labels {
+		// Check if the label has already been added to our set
+		if _, exists := seenLabels[l.Label]; !exists {
+			// If not, add it to the map
+			seenLabels[l.Label] = struct{}{}
+			// And append it to our result slice
+			distinctLabels = append(distinctLabels, l.Label)
+		}
+	}
+
+	return distinctLabels
+}
+
 //Objectj generator - more context logic related
 
-func generateDictionaryProperty(name string, values map[string]string, templateName string) entities.YamlProperty {
+func generateDictionaryProperty(name string, values map[string]string, templateName string, override *bool) entities.YamlProperty {
 	yamlProperty := entities.YamlProperty{Name: name, DictValues: values, TemplateName: templateName}
-	if !containsKeyValuePair(values, "$(overridable)") && values != nil && len(values) > 0 {
-		yamlProperty.Sealed = true
+	if override != nil {
+		yamlProperty.Sealed = !*override
 	}
+
 	if containsKeyValuePair(values, "default") {
 		yamlProperty.Default = true
 	}
 	return yamlProperty
 }
 
-func (objectHandler ObjectHandler) GenerateSignal(generalProperties []entities.YamlProperty, contextProperties []entities.YamlContextProperty, steps []entities.SignalStep, originatorPath string, nickname string, requireAcknowledge string) entities.Signal {
+func (objectHandler ObjectHandler) GenerateSignal(generalProperties []entities.YamlProperty, contextProperties []entities.YamlContextProperty, steps []entities.SignalStep, labels []entities.Label, originatorPath string, nickname string, requireAcknowledge string) entities.Signal {
 	sealedProperties := []string{}
 	signal := entities.Signal{}
 	signal.Sender = generalProperties[len(generalProperties)-1].TemplateName
@@ -244,6 +273,8 @@ func (objectHandler ObjectHandler) GenerateSignal(generalProperties []entities.Y
 
 	signal.EmitQuays = generateEmitQuays(signal, steps)
 
+	signal.Labels = getDistinctLabels(labels)
+
 	return signal
 }
 
@@ -263,11 +294,10 @@ func generateEmitQuays(signal entities.Signal, steps []entities.SignalStep) []en
 	return emitQuays
 }
 
+//	if prop.Name == "Header.Labels" {
+//		signal.Labels = prop.Values
+//	}
 func updateSignalGeneralProperties(signal entities.Signal, prop entities.YamlProperty) entities.Signal {
-
-	if prop.Name == "Header.Labels" {
-		signal.Labels = prop.Values
-	}
 	if prop.Name == "Configuration.Containerize" {
 		signal.Containerize = *prop.BoolValue
 	}

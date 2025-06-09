@@ -15,8 +15,8 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image" // New import for image-specific types
 	"github.com/docker/docker/client"
-	"github.com/docker/docker/pkg/archive"
 	"github.com/docker/docker/pkg/stdcopy"
+	"github.com/moby/go-archive"
 	"golang.org/x/term"
 )
 
@@ -838,8 +838,6 @@ func buildAndRunDockerfile(dockerfileContent string, containerName string) error
 
 	// Block indefinitely to keep the interactive session open.
 	select {} // Keep Go program alive until terminated by Ctrl+C or container exits.
-
-	return nil
 }
 
 func isInstalledOnLinux(dep string) bool {

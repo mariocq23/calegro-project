@@ -31,9 +31,9 @@ func main() {
 
 	yamls := fileReader.ReadAllYamls(filePath)
 
-	generalProperties, contextProperties, signalSteps := objectHandler.GenerateYamlProperties(yamls)
+	generalProperties, contextProperties, signalSteps, labels := objectHandler.GenerateYamlProperties(yamls)
 
-	signal := objectHandler.GenerateSignal(generalProperties, contextProperties, signalSteps, originatorPath, nickname, requireAcknowledge)
+	signal := objectHandler.GenerateSignal(generalProperties, contextProperties, signalSteps, labels, originatorPath, nickname, requireAcknowledge)
 
 	configuration = configuration.SetConfigurationFromSignal(signal)
 

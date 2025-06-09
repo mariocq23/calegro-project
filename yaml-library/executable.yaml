@@ -7,3 +7,4 @@ action:
 
 configuration:
   containerize: true
+  can-overwrite: true
