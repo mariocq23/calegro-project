@@ -123,7 +123,20 @@ func installOsDependencies(signal entities.Signal) {
 }
 
 func installDependenciesOnLinux(dependencies []string, containerize bool) {
-	panic("unimplemented")
+	if containerize {
+		installDependenciesOnLinuxContainer(dependencies)
+		return
+	}
+
+	for _, dep := range dependencies {
+		if !isInstalledOnLinux(dep) {
+			log.Printf("%s is not installed. Proceeding with installation...\n", dep)
+			err := installDependencyOnLinux(dep)
+			if err != nil {
+				log.Printf("Failed to install %s.\n", dep)
+			}
+		}
+	}
 }
 
 func installDependenciesOnWindows(dependencies []string, containerize bool, signalOs string) {
@@ -149,7 +162,189 @@ func installDependenciesOnWindows(dependencies []string, containerize bool, sign
 }
 
 func installDependenciesOnWindowsContainer(dependencies []string) {
-	panic("unimplemented")
+	ctx := context.Background()
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		log.Fatalf("Failed to create Docker client: %v", err)
+	}
+	defer cli.Close()
+
+	// Use a common Windows Server Core image. Nano Server is smaller but might lack some tools.
+	// You might need to pick a specific tag like :ltsc2022 or :20H2 depending on your host OS.
+	imageName := "mcr.microsoft.com/windows/servercore:ltsc2022"
+	containerName := "my-windows-dev-interactive"
+
+	fmt.Printf("Attempting to provision Windows container '%s' with dependencies: %s\n", containerName, strings.Join(dependencies, ", "))
+	fmt.Printf("!!! Ensure you are running on a Windows host with Docker Desktop in Windows Container mode. !!!\n")
+
+	// --- Step 1: Pre-check and Clean Up Existing Container ---
+	_, err = cli.ContainerInspect(ctx, containerName)
+	if err == nil {
+		fmt.Printf("Container '%s' already exists. Stopping and removing...\n", containerName)
+		timeout := 5
+		if err := cli.ContainerStop(ctx, containerName, container.StopOptions{Timeout: &timeout}); err != nil {
+			log.Printf("Warning: Failed to stop existing container '%s': %v. Attempting to remove anyway.", containerName, err)
+		}
+		if err := cli.ContainerRemove(ctx, containerName, container.RemoveOptions{}); err != nil {
+			log.Fatalf("Failed to remove existing container '%s': %v", containerName, err)
+		}
+		fmt.Printf("Existing container '%s' removed.\n", containerName)
+	}
+
+	// --- Step 2: Pull Image ---
+	fmt.Printf("Attempting to pull image '%s'...\n", imageName)
+	reader, err := cli.ImagePull(ctx, imageName, image.PullOptions{})
+	if err != nil {
+		log.Fatalf("Failed to pull image '%s': %v", imageName, err)
+	}
+	defer reader.Close()
+	// Windows container pull output might not use multiplexing, so stdcopy might not be strictly necessary
+	// but it's generally safe to use.
+	if _, err := stdcopy.StdCopy(os.Stdout, os.Stderr, reader); err != nil {
+		log.Printf("Warning: Error streaming image pull output: %v", err)
+	}
+	fmt.Printf("Successfully pulled image '%s'\n", imageName)
+
+	// --- Step 3: Container Configuration for Interactive Session ---
+	config := &container.Config{
+		Image:        imageName,
+		Tty:          true, // Allocate a TTY (behavior may vary compared to Linux)
+		OpenStdin:    true, // Keep STDIN open
+		AttachStdout: true, // Attach stdout
+		AttachStderr: true, // Attach stderr
+		// For Windows, default shell is cmd.exe. We start powershell.exe for more flexibility.
+		Cmd: []string{"powershell.exe"},
+	}
+
+	hostConfig := &container.HostConfig{
+		// No specific host config needed for simple interactive use
+	}
+
+	// --- Step 4: Create and Start Container ---
+	resp, err := cli.ContainerCreate(ctx, config, hostConfig, nil, nil, containerName)
+	if err != nil {
+		log.Fatalf("Failed to create container '%s': %v", containerName, err)
+	}
+	fmt.Printf("Successfully created container with ID: %s\n", resp.ID)
+
+	if err := cli.ContainerStart(ctx, resp.ID, container.StartOptions{}); err != nil {
+		log.Fatalf("Failed to start container '%s': %v", containerName, err)
+	}
+	fmt.Printf("Successfully started container '%s'\n", containerName)
+
+	// --- Step 5: Install Dependencies via Exec ---
+	// For Windows, installing dependencies often involves different commands.
+	// We'll use a simple PowerShell command. `winget` is often not in base images.
+	// For example, to install a feature or a specific package.
+	// For this example, we'll simulate a simple "installation" command.
+	// Real-world Windows package management (like chocolatey or direct MSIs) is more complex.
+	fmt.Println("\n--- Installing Dependencies ---")
+	// Example: Create a directory and a file.
+	// Real dependencies might involve `dism` for Windows features or specific installers.
+	commands := []string{
+		"mkdir C:\\Dependencies",
+		fmt.Sprintf("echo Dependencies_installed_GoLang > C:\\Dependencies\\%s.txt", strings.Join(dependencies, "_")),
+		// Example of installing a Windows feature using Dism.exe
+		// "dism.exe /online /enable-feature /featurename:IIS-WebServerRole /all /NoRestart",
+	}
+
+	for _, cmd := range commands {
+		fmt.Printf("Executing command in container: %s\n", cmd)
+		execConfig := container.ExecOptions{
+			User:         "ContainerAdministrator", // Typical user for Windows containers
+			Privileged:   false,
+			Tty:          true, // Use TTY for clearer output
+			AttachStdout: true,
+			AttachStderr: true,
+			Cmd:          []string{"powershell.exe", "-Command", cmd}, // Use PowerShell to execute
+		}
+
+		execResp, err := cli.ContainerExecCreate(ctx, resp.ID, execConfig)
+		if err != nil {
+			log.Fatalf("Failed to create exec command for '%s': %v", cmd, err)
+		}
+
+		attachResp, err := cli.ContainerExecAttach(ctx, execResp.ID, container.ExecAttachOptions{})
+		if err != nil {
+			log.Fatalf("Failed to attach to exec command for '%s': %v", cmd, err)
+		}
+		// Windows container output might not be multiplexed, so io.Copy might be more direct.
+		// However, stdcopy.StdCopy is resilient.
+		if _, err := io.Copy(os.Stdout, attachResp.Reader); err != nil { // Directly copy to stdout
+			log.Printf("Warning: Error streaming output for command '%s': %v", cmd, err)
+		}
+		attachResp.Close()
+
+		exitCodeResp, err := cli.ContainerExecInspect(ctx, execResp.ID)
+		if err != nil {
+			log.Fatalf("Error inspecting exec command for '%s': %v", cmd, err)
+		}
+		if exitCodeResp.ExitCode != 0 {
+			log.Fatalf("Command '%s' failed with exit code: %d", cmd, exitCodeResp.ExitCode)
+		}
+		fmt.Printf("Successfully executed command: %s\n", cmd)
+	}
+
+	fmt.Println("\n--- Dependencies Provisioned. Attaching to Windows Container. ---")
+	fmt.Println("Type 'exit' to detach from the container (container will remain running).")
+
+	// --- Step 6: Attach to the Container's Primary Process (Interactive Shell) ---
+	oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
+	if err != nil {
+		log.Fatalf("Failed to set terminal to raw mode: %v", err)
+	}
+	defer func() {
+		fmt.Println("\n--- Detaching from container. Restoring terminal state. ---")
+		term.Restore(int(os.Stdin.Fd()), oldState)
+	}()
+
+	width, height, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil {
+		log.Printf("Warning: Failed to get terminal size: %v. Using default.", err)
+		width, height = 80, 24
+	}
+
+	// Windows containers might have specific attach options or behaviors for TTY/Stdin/Stdout.
+	// The `AttachOptions` are generally the same.
+	attachOptions := container.AttachOptions{
+		Stream:     true,
+		Stdin:      true,
+		Stdout:     true,
+		Stderr:     true,
+		Logs:       false,
+		DetachKeys: "ctrl-p,ctrl-q", // Standard Docker detach keys
+	}
+
+	hijackedResp, err := cli.ContainerAttach(ctx, resp.ID, attachOptions)
+	if err != nil {
+		log.Fatalf("Failed to attach to container: %v", err)
+	}
+	defer hijackedResp.Close()
+
+	// Goroutine to copy container stdout/stderr to os.Stdout/Stderr
+	// For Windows, often direct io.Copy is used as streams might not be multiplexed by default.
+	go func() {
+		_, err := io.Copy(os.Stdout, hijackedResp.Reader)
+		if err != nil {
+			// This error can often be an EOF when the container exits, which is normal.
+			// log.Printf("Error copying stdout from container: %v", err)
+		}
+	}()
+
+	// Goroutine to copy os.Stdin to container stdin
+	go func() {
+		_, err := io.Copy(hijackedResp.Conn, os.Stdin)
+		if err != nil {
+			// This error can often be an EOF when your program terminates or connection closes.
+			// log.Printf("Error copying stdin to container: %v", err)
+		}
+	}()
+
+	// Initial resize call
+	cli.ContainerResize(ctx, resp.ID, container.ResizeOptions{Width: uint(width), Height: uint(height)})
+
+	// Block indefinitely to keep the interactive session open.
+	select {}
 }
 
 func installDependenciesOnMac(dependencies []string, containerize bool) {
