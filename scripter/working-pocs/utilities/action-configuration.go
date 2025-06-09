@@ -7,12 +7,15 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"scripter/entities"
 	"strings"
 
+	"github.com/docker/docker/api/types/build"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image" // New import for image-specific types
 	"github.com/docker/docker/client"
+	"github.com/docker/docker/pkg/archive"
 	"github.com/docker/docker/pkg/stdcopy"
 	"golang.org/x/term"
 )
@@ -124,7 +127,7 @@ func installOsDependencies(signal entities.Signal) {
 
 func installDependenciesOnLinux(dependencies []string, containerize bool) {
 	if containerize {
-		installDependenciesOnLinuxContainer(dependencies)
+		installDependenciesOnLinuxContainer(dependencies, true)
 		return
 	}
 
@@ -141,11 +144,11 @@ func installDependenciesOnLinux(dependencies []string, containerize bool) {
 
 func installDependenciesOnWindows(dependencies []string, containerize bool, signalOs string) {
 	if containerize && signalOs == "linux" {
-		installDependenciesOnLinuxContainer(dependencies)
+		installDependenciesOnLinuxContainer(dependencies, true)
 		return
 	}
 	if containerize && signalOs == "windows" {
-		installDependenciesOnWindowsContainer(dependencies)
+		installDependenciesOnWindowsContainer(dependencies, true)
 		return
 	}
 
@@ -161,7 +164,30 @@ func installDependenciesOnWindows(dependencies []string, containerize bool, sign
 	}
 }
 
-func installDependenciesOnWindowsContainer(dependencies []string) {
+func installDependenciesOnWindowsContainer(dependencies []string, preinstall bool) {
+	if !preinstall {
+		runWindowsContainer(dependencies)
+		return
+	}
+	// Generate the Dockerfile content
+	dockerfileContent, err := generateDockerfile("windows", dependencies)
+	if err != nil {
+		log.Fatalf("Failed to generate Dockerfile: %v", err)
+	}
+	fmt.Println("\nGenerated Dockerfile:\n", dockerfileContent)
+
+	// Define a consistent container name
+	containerName := fmt.Sprintf("my-dev-container-%s", "windows")
+
+	// Build the image and run the container
+	if err := buildAndRunDockerfile(dockerfileContent, containerName); err != nil {
+		log.Fatalf("Failed to build and run container: %v", err)
+	}
+
+	fmt.Println("Go program finished.")
+}
+
+func runWindowsContainer(dependencies []string) {
 	ctx := context.Background()
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
@@ -349,7 +375,7 @@ func installDependenciesOnWindowsContainer(dependencies []string) {
 
 func installDependenciesOnMac(dependencies []string, containerize bool) {
 	if containerize {
-		installDependenciesOnLinuxContainer(dependencies)
+		installDependenciesOnLinuxContainer(dependencies, false)
 		return
 	}
 
@@ -382,7 +408,34 @@ func installDependencyOnLinux(dep string) any {
 
 // installDependenciesOnLinuxContainer sets up a Docker container, installs multiple dependencies,
 // and leaves the container running.
-func installDependenciesOnLinuxContainer(dependencies []string) {
+func installDependenciesOnLinuxContainer(dependencies []string, preinstall bool) {
+	if !preinstall {
+		runLinuxContainer(dependencies) // Blocks indefinitely until process termination (Ctrl+C) or deferred functions run
+		// A more proper way would be to listen for the container's exit event
+		// or for the hijackedResp.Reader/Writer to close.
+		// For simplicity, select{} keeps the program alive while the attachment runs.
+	} else {
+		// Generate the Dockerfile content
+		dockerfileContent, err := generateDockerfile("linux", dependencies)
+		if err != nil {
+			log.Fatalf("Failed to generate Dockerfile: %v", err)
+		}
+		fmt.Println("\nGenerated Dockerfile:\n", dockerfileContent)
+
+		// Define a consistent container name
+		containerName := fmt.Sprintf("my-dev-container-%s", "linux")
+
+		// Build the image and run the container
+		if err := buildAndRunDockerfile(dockerfileContent, containerName); err != nil {
+			log.Fatalf("Failed to build and run container: %v", err)
+		}
+
+		fmt.Println("Go program finished.")
+	}
+
+}
+
+func runLinuxContainer(dependencies []string) {
 	ctx := context.Background()
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
@@ -587,11 +640,206 @@ func installDependenciesOnLinuxContainer(dependencies []string) {
 
 	// Wait for the copy operations to finish (i.e., when the container exits or connection breaks)
 	// This approach directly blocks until the connection is done.
-	select {} // Blocks indefinitely until process termination (Ctrl+C) or deferred functions run
-	// A more proper way would be to listen for the container's exit event
-	// or for the hijackedResp.Reader/Writer to close.
-	// For simplicity, select{} keeps the program alive while the attachment runs.
+	select {}
+}
 
+func generateDockerfile(osType string, dependencies []string) (string, error) {
+	var dockerfileContent strings.Builder
+
+	switch strings.ToLower(osType) {
+	case "linux":
+		baseImage := "ubuntu:latest"
+		dockerfileContent.WriteString(fmt.Sprintf("FROM %s\n", baseImage))
+		dockerfileContent.WriteString("ENV DEBIAN_FRONTEND=noninteractive\n")
+		dockerfileContent.WriteString("RUN apt-get update && apt-get install -y \\\n")
+		for i, dep := range dependencies {
+			dockerfileContent.WriteString(fmt.Sprintf("    %s%s", dep, func() string {
+				if i < len(dependencies)-1 {
+					return " \\"
+				}
+				return ""
+			}()))
+			if (i+1)%5 == 0 && i < len(dependencies)-1 { // Newline every 5 deps for readability
+				dockerfileContent.WriteString("\n")
+			}
+		}
+		dockerfileContent.WriteString("\n")
+		dockerfileContent.WriteString("CMD [\"bash\"]\n") // Keep container open with bash
+	case "windows":
+		// Choose a Windows Server Core image. Ensure it's compatible with your Windows Docker host.
+		// Use a specific tag like :ltsc2022 to avoid issues with host OS mismatch.
+		baseImage := "mcr.microsoft.com/windows/servercore:ltsc2022"
+		dockerfileContent.WriteString(fmt.Sprintf("FROM %s\n", baseImage))
+		dockerfileContent.WriteString("SHELL [\"powershell.exe\", \"-Command\", \"$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';\"]\n")
+
+		// Windows package installation is more complex.
+		// For simplicity, we'll demonstrate creating files/dirs.
+		// Real installations would involve MSIEXEC, DISM, winget, or Chocolatey.
+		dockerfileContent.WriteString("RUN mkdir C:\\Dependencies\n")
+		dockerfileContent.WriteString(fmt.Sprintf("RUN echo Dependencies_installed_GoLang > C:\\Dependencies\\%s.txt\n", strings.Join(dependencies, "_")))
+
+		// Example of installing a Windows feature (uncomment if needed and ensure compatibility)
+		// dockerfileContent.WriteString("RUN dism.exe /online /enable-feature /featurename:IIS-WebServerRole /all /NoRestart\n")
+
+		dockerfileContent.WriteString("CMD [\"powershell.exe\"]\n") // Keep container open with PowerShell
+	default:
+		return "", fmt.Errorf("unsupported OS type: %s. Choose 'linux' or 'windows'.", osType)
+	}
+
+	return dockerfileContent.String(), nil
+}
+
+func buildAndRunDockerfile(dockerfileContent string, containerName string) error {
+	ctx := context.Background()
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		return fmt.Errorf("failed to create Docker client: %v", err)
+	}
+	defer cli.Close()
+
+	// --- Step 1: Prepare Build Context (Dockerfile) ---
+	// Create a temporary directory for the build context
+	tempDir, err := os.MkdirTemp("", "docker-build-context-*")
+	if err != nil {
+		return fmt.Errorf("failed to create temp directory for build context: %v", err)
+	}
+	defer os.RemoveAll(tempDir) // Clean up temp directory
+
+	dockerfilePath := filepath.Join(tempDir, "Dockerfile")
+	err = os.WriteFile(dockerfilePath, []byte(dockerfileContent), 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write Dockerfile to temp directory: %v", err)
+	}
+	fmt.Printf("Dockerfile generated at: %s\n", dockerfilePath)
+
+	// Create a tar archive of the build context (the temp directory)
+	tarReader, err := archive.Tar(tempDir, archive.Gzip)
+	if err != nil {
+		return fmt.Errorf("failed to create tar archive for build context: %v", err)
+	}
+
+	// --- Step 2: Build the Docker Image ---
+	imageTag := strings.ToLower(containerName + ":latest")
+	fmt.Printf("Building Docker image: %s...\n", imageTag)
+	buildOptions := build.ImageBuildOptions{
+		Dockerfile: "Dockerfile", // Relative path inside the tar archive
+		Tags:       []string{imageTag},
+		Remove:     true, // Remove intermediate containers after a successful build
+	}
+
+	buildResponse, err := cli.ImageBuild(ctx, tarReader, buildOptions)
+	if err != nil {
+		return fmt.Errorf("failed to start image build: %v", err)
+	}
+	defer buildResponse.Body.Close()
+
+	// Stream build output to stdout
+	fmt.Println("--- Docker Build Output ---")
+	if _, err := io.Copy(os.Stdout, buildResponse.Body); err != nil {
+		log.Printf("Warning: Error streaming build output: %v", err)
+	}
+	fmt.Println("--- End Docker Build Output ---")
+
+	// --- Step 3: Run the Image in Interactive Mode ---
+	// First, check if a container with the same name already exists and remove it
+	_, err = cli.ContainerInspect(ctx, containerName)
+	if err == nil { // Container exists
+		fmt.Printf("Container '%s' already exists. Stopping and removing...\n", containerName)
+		timeout := 5 // Give it a few seconds to stop gracefully
+		if err := cli.ContainerStop(ctx, containerName, container.StopOptions{Timeout: &timeout}); err != nil {
+			log.Printf("Warning: Failed to stop existing container '%s': %v. Attempting to remove anyway.", containerName, err)
+		}
+		if err := cli.ContainerRemove(ctx, containerName, container.RemoveOptions{}); err != nil {
+			return fmt.Errorf("failed to remove existing container '%s': %v", containerName, err)
+		}
+		fmt.Printf("Existing container '%s' removed.\n", containerName)
+	}
+
+	fmt.Printf("Creating and starting container '%s' from image '%s' in interactive mode...\n", containerName, imageTag)
+
+	// Container configuration for interactive mode
+	config := &container.Config{
+		Image:        imageTag,
+		Tty:          true, // Allocate a TTY
+		OpenStdin:    true, // Keep STDIN open
+		AttachStdout: true, // Attach stdout
+		AttachStderr: true, // Attach stderr
+		// CMD is usually set in Dockerfile, but can be overridden here if needed.
+		// If Dockerfile has CMD, this will be the entry point.
+	}
+
+	hostConfig := &container.HostConfig{
+		// No specific host config needed for simple interactive use
+	}
+
+	resp, err := cli.ContainerCreate(ctx, config, hostConfig, nil, nil, containerName)
+	if err != nil {
+		return fmt.Errorf("failed to create container '%s': %v", containerName, err)
+	}
+	fmt.Printf("Successfully created container with ID: %s\n", resp.ID)
+
+	if err := cli.ContainerStart(ctx, resp.ID, container.StartOptions{}); err != nil {
+		return fmt.Errorf("failed to start container '%s': %v", containerName, err)
+	}
+	fmt.Printf("Successfully started container '%s'\n", containerName)
+
+	// --- Step 4: Attach to the Container's Primary Process (Interactive Shell) ---
+	fmt.Println("\n--- Container Provisioned. Attaching to Interactive Shell. ---")
+	fmt.Println("Type 'exit' to detach from the container (container will remain running).")
+
+	oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
+	if err != nil {
+		return fmt.Errorf("failed to set terminal to raw mode: %v", err)
+	}
+	defer func() {
+		fmt.Println("\n--- Detaching from container. Restoring terminal state. ---")
+		term.Restore(int(os.Stdin.Fd()), oldState)
+	}()
+
+	width, height, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil {
+		log.Printf("Warning: Failed to get terminal size: %v. Using default.", err)
+		width, height = 80, 24
+	}
+
+	attachOptions := container.AttachOptions{
+		Stream:     true,
+		Stdin:      true,
+		Stdout:     true,
+		Stderr:     true,
+		Logs:       false,
+		DetachKeys: "ctrl-p,ctrl-q", // Standard Docker detach keys
+	}
+
+	hijackedResp, err := cli.ContainerAttach(ctx, resp.ID, attachOptions)
+	if err != nil {
+		return fmt.Errorf("failed to attach to container: %v", err)
+	}
+	defer hijackedResp.Close()
+
+	// Goroutine to copy container stdout/stderr to os.Stdout/Stderr
+	go func() {
+		_, err := io.Copy(os.Stdout, hijackedResp.Reader)
+		if err != nil && err != io.EOF { // Ignore EOF as it's normal for stream close
+			log.Printf("Error copying stdout from container: %v", err)
+		}
+	}()
+
+	// Goroutine to copy os.Stdin to container stdin
+	go func() {
+		_, err := io.Copy(hijackedResp.Conn, os.Stdin)
+		if err != nil && err != io.EOF { // Ignore EOF
+			log.Printf("Error copying stdin to container: %v", err)
+		}
+	}()
+
+	// Initial resize call
+	cli.ContainerResize(ctx, resp.ID, container.ResizeOptions{Width: uint(width), Height: uint(height)})
+
+	// Block indefinitely to keep the interactive session open.
+	select {} // Keep Go program alive until terminated by Ctrl+C or container exits.
+
+	return nil
 }
 
 func isInstalledOnLinux(dep string) bool {
