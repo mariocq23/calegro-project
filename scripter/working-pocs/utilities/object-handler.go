@@ -265,6 +265,8 @@ func (objectHandler ObjectHandler) GenerateSignal(generalProperties []entities.Y
 		signal.OriginatorQuay.RequireAcknowledge = stringHandler.InterpretStringAsBool(requireAcknowledge)
 	}
 
+	signal.Labels = getDistinctLabels(labels)
+
 	if signal.Environment == "default" {
 		return signal
 	}
@@ -272,8 +274,6 @@ func (objectHandler ObjectHandler) GenerateSignal(generalProperties []entities.Y
 	signal = updateSignalContextProperties(signal, contextProperties)
 
 	signal.EmitQuays = generateEmitQuays(signal, steps)
-
-	signal.Labels = getDistinctLabels(labels)
 
 	return signal
 }
