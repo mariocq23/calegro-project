@@ -1,0 +1,68 @@
+name: Multi-Agent Workflow
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  go_job:
+    runs-on: [macOS, calegro]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.22'
+      - name: Run Go build and test
+        run: |
+          go build .
+          go test ./...
+
+  docker_job:
+    runs-on: [ubuntu-latest]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Build and tag Docker image
+        run: docker build -t my-app-image .
+
+  redis_job:
+    runs-on: [linux, arm64, calegro]
+    services:
+      redis:
+        image: redis:6
+        ports:
+          - 6379:6379
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Run tests with Redis
+        run: |
+          echo "Running tests against Redis on macOS"
+          
+  rabbitmq_job:
+    runs-on: [linux, X64, calegro]
+    services:
+      rabbitmq:
+        image: rabbitmq:3-management
+        ports:
+          - 5672:5672
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Run tests with RabbitMQ
+        run: |
+          echo "Running tests against RabbitMQ on Ubuntu"
+          
+  dosbox_job:
+    runs-on: [Windows, calegro]
+    container:
+      image: schneidexe/docker-dosbox:latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Run a DOS command
+        run: |
+          echo "Executing a DOS command in the container."
