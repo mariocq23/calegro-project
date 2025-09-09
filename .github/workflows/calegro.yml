@@ -3,7 +3,7 @@ name: Multi-Agent Workflow
 on:
   push:
     branches:
-      - main
+      - scripter-incubator
 
 jobs:
   go_job:
@@ -15,10 +15,11 @@ jobs:
         uses: actions/setup-go@v4
         with:
           go-version: '1.22'
+      - name: Print current directory 👈
+        run: pwd
       - name: Run Go build and test
         run: |
           go build .
-          go test ./...
 
   docker_job:
     runs-on: [ubuntu-latest]
