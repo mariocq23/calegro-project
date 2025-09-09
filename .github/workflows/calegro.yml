@@ -1,6 +1,7 @@
 name: Multi-Agent Workflow
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - scripter-incubator
