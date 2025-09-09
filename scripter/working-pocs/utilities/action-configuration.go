@@ -1,6 +1,8 @@
 package utilities
 
 import (
+	"archive/tar"
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -15,9 +17,11 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image" // New import for image-specific types
 	"github.com/docker/docker/client"
+	"github.com/docker/docker/pkg/jsonmessage"
 	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/moby/go-archive"
-	"golang.org/x/term"
+	mobyterm "github.com/moby/term"
+	xterm "golang.org/x/term"
 )
 
 type ActionConfiguration struct {
@@ -81,7 +85,7 @@ func checkConfigurationPlatformCombination(configuration ActionConfiguration) bo
 	if configuration.HostOs == "linux" && configuration.SignalOs == "windows" && configuration.Containerize {
 		return false
 	}
-	if configuration.HostOs == "windows" && !stringHandler.ContainsString(feasiblePackInstallersInWindows, configuration.PackageInstaller) {
+	if configuration.HostOs == "windows" && !stringHandler.ContainsString(feasiblePackInstallersInWindows, configuration.PackageInstaller) && !configuration.Containerize {
 		return false
 	}
 	if configuration.Type == "ui-window-program" && configuration.Containerize {
@@ -127,7 +131,7 @@ func installOsDependencies(signal entities.Signal) {
 
 func installDependenciesOnLinux(dependencies []string, containerize bool) {
 	if containerize {
-		installDependenciesOnLinuxContainer(dependencies, true)
+		installDependenciesOnLinuxContainer()
 		return
 	}
 
@@ -144,7 +148,7 @@ func installDependenciesOnLinux(dependencies []string, containerize bool) {
 
 func installDependenciesOnWindows(dependencies []string, containerize bool, signalOs string) {
 	if containerize && signalOs == "linux" {
-		installDependenciesOnLinuxContainer(dependencies, true)
+		installDependenciesOnLinuxContainer()
 		return
 	}
 	if containerize && signalOs == "windows" {
@@ -177,12 +181,12 @@ func installDependenciesOnWindowsContainer(dependencies []string, preinstall boo
 	fmt.Println("\nGenerated Dockerfile:\n", dockerfileContent)
 
 	// Define a consistent container name
-	containerName := fmt.Sprintf("my-dev-container-%s", "windows")
+	// containerName := fmt.Sprintf("my-dev-container-%s", "windows")
 
-	// Build the image and run the container
-	if err := buildAndRunDockerfile(dockerfileContent, containerName); err != nil {
-		log.Fatalf("Failed to build and run container: %v", err)
-	}
+	// // Build the image and run the container
+	// if err := buildAndRunDockerfile(dockerfileContent, containerName); err != nil {
+	// 	log.Fatalf("Failed to build and run container: %v", err)
+	// }
 
 	fmt.Println("Go program finished.")
 }
@@ -315,16 +319,16 @@ func runWindowsContainer(dependencies []string) {
 	fmt.Println("Type 'exit' to detach from the container (container will remain running).")
 
 	// --- Step 6: Attach to the Container's Primary Process (Interactive Shell) ---
-	oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
+	oldState, err := xterm.MakeRaw(int(os.Stdin.Fd()))
 	if err != nil {
 		log.Fatalf("Failed to set terminal to raw mode: %v", err)
 	}
 	defer func() {
 		fmt.Println("\n--- Detaching from container. Restoring terminal state. ---")
-		term.Restore(int(os.Stdin.Fd()), oldState)
+		xterm.Restore(int(os.Stdin.Fd()), oldState)
 	}()
 
-	width, height, err := term.GetSize(int(os.Stdout.Fd()))
+	width, height, err := xterm.GetSize(int(os.Stdout.Fd()))
 	if err != nil {
 		log.Printf("Warning: Failed to get terminal size: %v. Using default.", err)
 		width, height = 80, 24
@@ -375,7 +379,7 @@ func runWindowsContainer(dependencies []string) {
 
 func installDependenciesOnMac(dependencies []string, containerize bool) {
 	if containerize {
-		installDependenciesOnLinuxContainer(dependencies, false)
+		installDependenciesOnLinuxContainer()
 		return
 	}
 
@@ -406,49 +410,67 @@ func installDependencyOnLinux(dep string) any {
 	return nil
 }
 
-// installDependenciesOnLinuxContainer sets up a Docker container, installs multiple dependencies,
-// and leaves the container running.
-func installDependenciesOnLinuxContainer(dependencies []string, preinstall bool) {
-	if !preinstall {
-		runLinuxContainer(dependencies) // Blocks indefinitely until process termination (Ctrl+C) or deferred functions run
-		// A more proper way would be to listen for the container's exit event
-		// or for the hijackedResp.Reader/Writer to close.
-		// For simplicity, select{} keeps the program alive while the attachment runs.
-	} else {
-		// Generate the Dockerfile content
-		dockerfileContent, err := generateDockerfile("linux", dependencies)
-		if err != nil {
-			log.Fatalf("Failed to generate Dockerfile: %v", err)
-		}
-		fmt.Println("\nGenerated Dockerfile:\n", dockerfileContent)
-
-		// Define a consistent container name
-		containerName := fmt.Sprintf("my-dev-container-%s", "linux")
-
-		// Build the image and run the container
-		if err := buildAndRunDockerfile(dockerfileContent, containerName); err != nil {
-			log.Fatalf("Failed to build and run container: %v", err)
-		}
-
-		fmt.Println("Go program finished.")
-	}
-
-}
-
-func runLinuxContainer(dependencies []string) {
+func buildAndRunContainer(containerName, dockerfilePath string) error {
 	ctx := context.Background()
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
-		log.Fatalf("Failed to create Docker client: %v", err)
+		return fmt.Errorf("failed to create Docker client: %w", err)
 	}
 	defer cli.Close()
 
-	imageName := "ubuntu:latest"
-	containerName := "my-ubuntu-dev-interactive" // New name to avoid conflict
+	imageTag := strings.ToLower(containerName + ":latest")
 
-	fmt.Printf("Attempting to provision container '%s' with dependencies: %s\n", containerName, strings.Join(dependencies, ", "))
+	// --- Step 1: Read the Dockerfile content from the file system ---
+	fmt.Printf("Reading Dockerfile from: %s\n", dockerfilePath)
+	dockerfileBytes, err := os.ReadFile(dockerfilePath)
+	if err != nil {
+		return fmt.Errorf("failed to read Dockerfile: %w", err)
+	}
 
-	// --- Step 1: Pre-check and Clean Up Existing Container (as before) ---
+	// --- Step 2: Create an in-memory tar archive with the Dockerfile ---
+	fmt.Println("Creating in-memory Docker build context...")
+	buf := new(bytes.Buffer)
+	tw := tar.NewWriter(buf)
+
+	header := &tar.Header{
+		Name: "Dockerfile",
+		Size: int64(len(dockerfileBytes)),
+		Mode: 0600,
+	}
+
+	if err := tw.WriteHeader(header); err != nil {
+		return fmt.Errorf("failed to write tar header: %w", err)
+	}
+	if _, err := tw.Write(dockerfileBytes); err != nil {
+		return fmt.Errorf("failed to write Dockerfile content to tar: %w", err)
+	}
+	if err := tw.Close(); err != nil {
+		return fmt.Errorf("failed to close tar writer: %w", err)
+	}
+
+	tarReader := bytes.NewReader(buf.Bytes())
+
+	// --- Step 3: Build the Docker Image from the in-memory tarball ---
+	fmt.Printf("Building Docker image '%s' from in-memory context...\n", imageTag)
+	buildOptions := build.ImageBuildOptions{
+		Tags:       []string{imageTag},
+		Dockerfile: "Dockerfile",
+		Remove:     true, // Clean up intermediate containers
+	}
+
+	buildResponse, err := cli.ImageBuild(ctx, tarReader, buildOptions)
+	if err != nil {
+		return fmt.Errorf("failed to start image build: %w", err)
+	}
+	defer buildResponse.Body.Close()
+
+	// Stream build output to standard output
+	if _, err := stdcopy.StdCopy(os.Stdout, os.Stderr, buildResponse.Body); err != nil {
+		log.Printf("Warning: Error streaming build output: %v", err)
+	}
+	fmt.Printf("Successfully built image '%s'.\n", imageTag)
+
+	// --- Step 4: Clean Up Old Container ---
 	_, err = cli.ContainerInspect(ctx, containerName)
 	if err == nil {
 		fmt.Printf("Container '%s' already exists. Stopping and removing...\n", containerName)
@@ -457,190 +479,196 @@ func runLinuxContainer(dependencies []string) {
 			log.Printf("Warning: Failed to stop existing container '%s': %v. Attempting to remove anyway.", containerName, err)
 		}
 		if err := cli.ContainerRemove(ctx, containerName, container.RemoveOptions{}); err != nil {
-			log.Fatalf("Failed to remove existing container '%s': %v", containerName, err)
+			return fmt.Errorf("failed to remove existing container '%s': %w", containerName, err)
 		}
 		fmt.Printf("Existing container '%s' removed.\n", containerName)
 	}
 
-	// --- Step 2: Pull Image (as before) ---
-	fmt.Printf("Attempting to pull image '%s'...\n", imageName)
-	reader, err := cli.ImagePull(ctx, imageName, image.PullOptions{})
-	if err != nil {
-		log.Fatalf("Failed to pull image '%s': %v", imageName, err)
-	}
-	defer reader.Close()
-	if _, err := stdcopy.StdCopy(os.Stdout, os.Stderr, reader); err != nil {
-		log.Printf("Warning: Error streaming image pull output: %v", err)
-	}
-	fmt.Printf("Successfully pulled image '%s'\n", imageName)
-
-	// --- Step 3: Container Configuration for Interactive Session ---
+	// --- Step 5: Run the Custom Image ---
+	fmt.Printf("Creating and starting container '%s' from image '%s'...\n", containerName, imageTag)
 	config := &container.Config{
-		Image:        imageName,
-		Tty:          true,             // Allocate a TTY
-		OpenStdin:    true,             // Keep STDIN open
-		AttachStdout: true,             // Attach stdout
-		AttachStderr: true,             // Attach stderr
-		Cmd:          []string{"bash"}, // Start with bash, so we can attach to it
+		Image:        imageTag,
+		Tty:          true,
+		OpenStdin:    true,
+		AttachStdout: true,
+		AttachStderr: true,
 	}
 
-	hostConfig := &container.HostConfig{
-		// Optional: Example of bind mounting your current directory into the container
-		// Mounts: []mount.Mount{
-		// 	{
-		// 		Type:   mount.TypeBind,
-		// 		Source: "/path/to/your/host/dir", // Replace with your host path
-		// 		Target: "/app",
-		// 	},
-		// },
-	}
-
-	// --- Step 4: Create and Start Container (as before) ---
-	resp, err := cli.ContainerCreate(ctx, config, hostConfig, nil, nil, containerName)
+	resp, err := cli.ContainerCreate(ctx, config, &container.HostConfig{}, nil, nil, containerName)
 	if err != nil {
-		log.Fatalf("Failed to create container '%s': %v", containerName, err)
+		return fmt.Errorf("failed to create container '%s': %w", containerName, err)
 	}
 	fmt.Printf("Successfully created container with ID: %s\n", resp.ID)
 
 	if err := cli.ContainerStart(ctx, resp.ID, container.StartOptions{}); err != nil {
-		log.Fatalf("Failed to start container '%s': %v", containerName, err)
+		return fmt.Errorf("failed to start container '%s': %w", containerName, err)
+
 	}
 	fmt.Printf("Successfully started container '%s'\n", containerName)
 
-	// --- Step 5: Install Dependencies via Exec (as before) ---
-	fmt.Println("\n--- Installing Dependencies ---")
-	commands := []string{
-		"apt-get update",
-		fmt.Sprintf("DEBIAN_FRONTEND=noninteractive apt-get install -y %s", strings.Join(dependencies, " ")),
-	}
-
-	for _, cmd := range commands {
-		fmt.Printf("Executing command in container: %s\n", cmd)
-		execConfig := container.ExecOptions{
-			User:         "root",
-			Privileged:   false,
-			Tty:          true, // Use TTY for clearer output of apt-get
-			AttachStdout: true,
-			AttachStderr: true,
-			Cmd:          []string{"bash", "-c", cmd},
-		}
-
-		execResp, err := cli.ContainerExecCreate(ctx, resp.ID, execConfig)
-		if err != nil {
-			log.Fatalf("Failed to create exec command for '%s': %v", cmd, err)
-		}
-
-		attachResp, err := cli.ContainerExecAttach(ctx, execResp.ID, container.ExecAttachOptions{})
-		if err != nil {
-			log.Fatalf("Failed to attach to exec command for '%s': %v", cmd, err)
-		}
-		if _, err := stdcopy.StdCopy(os.Stdout, os.Stderr, attachResp.Reader); err != nil {
-			log.Printf("Warning: Error streaming output for command '%s': %v", cmd, err)
-		}
-		attachResp.Close()
-
-		exitCodeResp, err := cli.ContainerExecInspect(ctx, execResp.ID)
-		if err != nil {
-			log.Fatalf("Error inspecting exec command for '%s': %v", cmd, err)
-		}
-		if exitCodeResp.ExitCode != 0 {
-			log.Fatalf("Command '%s' failed with exit code: %d", cmd, exitCodeResp.ExitCode)
-		}
-		fmt.Printf("Successfully executed command: %s\n", cmd)
-	}
-
-	fmt.Println("\n--- Dependencies Installed. Attaching to Container. ---")
+	// --- Step 6: Attach to the Container ---
+	fmt.Println("\n--- Attaching to Container. Services are now running. ---")
 	fmt.Println("Type 'exit' to detach from the container (container will remain running).")
 
-	// --- Step 6: Attach to the Container's Primary Process ---
-	// This is the core part that makes your Go program an interactive terminal.
-
-	// Save the old terminal state to restore it later
-	oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
+	// Set the terminal to raw mode to handle user input correctly
+	oldState, err := xterm.MakeRaw(int(os.Stdin.Fd()))
 	if err != nil {
-		log.Fatalf("Failed to set terminal to raw mode: %v", err)
+		return fmt.Errorf("failed to set terminal to raw mode: %w", err)
 	}
 	defer func() {
 		fmt.Println("\n--- Detaching from container. Restoring terminal state. ---")
-		term.Restore(int(os.Stdin.Fd()), oldState)
+		xterm.Restore(int(os.Stdin.Fd()), oldState)
 	}()
 
-	// Get current terminal dimensions
-	width, height, err := term.GetSize(int(os.Stdout.Fd()))
+	// Get the terminal size for resizing
+	width, height, err := xterm.GetSize(int(os.Stdout.Fd()))
 	if err != nil {
 		log.Printf("Warning: Failed to get terminal size: %v. Using default.", err)
-		width, height = 80, 24 // Fallback
+		width, height = 80, 24
 	}
 
-	// Attach options for the primary container process
 	attachOptions := container.AttachOptions{
 		Stream:     true,
 		Stdin:      true,
 		Stdout:     true,
 		Stderr:     true,
-		Logs:       false,           // We're attaching live, not getting logs
-		DetachKeys: "ctrl-p,ctrl-q", // Standard Docker detach keys
+		Logs:       false,
+		DetachKeys: "ctrl-p,ctrl-q",
 	}
 
 	hijackedResp, err := cli.ContainerAttach(ctx, resp.ID, attachOptions)
 	if err != nil {
-		log.Fatalf("Failed to attach to container: %v", err)
+		return fmt.Errorf("failed to attach to container: %w", err)
 	}
 	defer hijackedResp.Close()
 
-	// Goroutine to copy container stdout/stderr to os.Stdout/Stderr
+	// Use goroutines to handle stdin/stdout streams
 	go func() {
-		// Use stdcopy.StdCopy if the container has TTY: false and you want separate streams
-		// Otherwise, if TTY: true (as here), direct io.Copy is often sufficient
-		_, err := io.Copy(os.Stdout, hijackedResp.Reader) // Reads from container, writes to host stdout
-		if err != nil {
+		_, err := io.Copy(os.Stdout, hijackedResp.Reader)
+		if err != nil && err != io.EOF {
 			log.Printf("Error copying stdout from container: %v", err)
 		}
 	}()
 
-	// Goroutine to copy os.Stdin to container stdin
 	go func() {
-		_, err := io.Copy(hijackedResp.Conn, os.Stdin) // Reads from host stdin, writes to container
-		if err != nil {
+		_, err := io.Copy(hijackedResp.Conn, os.Stdin)
+		if err != nil && err != io.EOF {
 			log.Printf("Error copying stdin to container: %v", err)
 		}
 	}()
 
-	// Goroutine to handle terminal resizing
-	// signal.Notify(resizeChan, syscall.SIGWINCH) // SIGWINCH is for terminal resize
+	// Resize the container's TTY to match the terminal
+	cli.ContainerResize(ctx, resp.ID, container.ResizeOptions{Width: uint(width), Height: uint(uint16(height))})
 
-	// For simplicity, we can just poll for size changes or rely on the user
-	// if frequent resizing is not critical. A more robust solution involves
-	// capturing SIGWINCH and calling ContainerResize.
-	// For this example, we'll assume a fixed size initially or you'd use a signal handler.
-	//
-	// You can add a loop here if you want to constantly update size on resize events:
-	// go func() {
-	//     for range resizeChan {
-	//         newWidth, newHeight, err := term.GetSize(int(os.Stdout.Fd()))
-	//         if err == nil {
-	//             cli.ContainerResize(ctx, resp.ID, types.ResizeOptions{
-	//                 Width:  uint(newWidth),
-	//                 Height: uint(newHeight),
-	//             })
-	//         }
-	//     }
-	// }()
-	// Initial resize call
-	cli.ContainerResize(ctx, resp.ID, container.ResizeOptions{Width: uint(width), Height: uint(height)})
-
-	// Keep the main Go routine alive until the container connection closes (e.g., 'exit' is typed)
-	// You need to wait for the hijacked connection to close.
-	// A common way is to wait on a channel that the copy goroutines signal,
-	// or more simply, let the main function block until an interrupt.
-	// Since we are copying STDIN/STDOUT, the main goroutine needs to wait for those to finish.
-	// io.Copy blocks until EOF or error. When you type 'exit' in the container,
-	// the container's stdin (which your program's stdout is writing to) will close,
-	// and the copy goroutines will finish.
-
-	// Wait for the copy operations to finish (i.e., when the container exits or connection breaks)
-	// This approach directly blocks until the connection is done.
+	// Block the main goroutine to keep the program running
 	select {}
+}
+
+// installDependenciesOnLinuxContainer sets up a Docker container, installs multiple dependencies,
+// and leaves the container running.
+func installDependenciesOnLinuxContainer() {
+
+	// Build the image and run the container
+
+	dir, err := os.Getwd()
+	if err != nil {
+		log.Fatalf("Failed to get current directory: %v", err)
+	}
+
+	// Print the directory
+	fmt.Println("Current directory is:", dir)
+
+	wd, err := os.Getwd()
+	if err != nil {
+		log.Fatalf("Failed to get current working directory: %v", err)
+	}
+	dockerfilePath := filepath.Join(wd, "Dockerfile")
+
+	err = buildImage("suck-it", dockerfilePath)
+	if err != nil {
+		log.Fatalf("Provisioning failed: %v", err)
+	}
+
+	fmt.Println("Go program finished.")
+}
+
+func buildImage(imageTag, contextPath string) error {
+	ctx := context.Background()
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		return fmt.Errorf("failed to create Docker client: %w", err)
+	}
+	defer cli.Close()
+
+	// --- Step 1: Create a tar archive of the entire build context directory ---
+	fmt.Printf("Creating tar archive of build context: %s\n", contextPath)
+	tarContext, err := archive.TarWithOptions(contextPath, &archive.TarOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to create build context tar: %w", err)
+	}
+	defer tarContext.Close()
+
+	// --- Step 2: Build the Docker Image from the tar archive ---
+	fmt.Printf("Building Docker image '%s'...\n", imageTag)
+	buildOptions := build.ImageBuildOptions{
+		Tags:       []string{imageTag},
+		Dockerfile: "Dockerfile", // This should be the name of the Dockerfile within the context
+		Remove:     true,         // Clean up intermediate containers
+	}
+
+	buildResponse, err := cli.ImageBuild(ctx, tarContext, buildOptions)
+	if err != nil {
+		return fmt.Errorf("failed to start image build: %w", err)
+	}
+	defer buildResponse.Body.Close()
+
+	// --- Step 3: Stream build output ---
+	// This part of your original code is correct for streaming
+	termFd, isTerm := mobyterm.GetFdInfo(os.Stderr)
+	if err := jsonmessage.DisplayJSONMessagesStream(buildResponse.Body, os.Stderr, termFd, isTerm, nil); err != nil {
+		// Use stdcopy if the output is not JSON-formatted (e.g., plain text logs)
+		if _, err := stdcopy.StdCopy(os.Stdout, os.Stderr, buildResponse.Body); err != nil {
+			log.Printf("Warning: Error streaming build output: %v", err)
+		}
+	}
+
+	return nil
+}
+
+func executeCommand(ctx context.Context, cli *client.Client, containerID string, cmd string) {
+	fmt.Printf("Executing command in container: %s\n", cmd)
+	execConfig := container.ExecOptions{
+		User:         "root",
+		Privileged:   false,
+		Tty:          true,
+		AttachStdout: true,
+		AttachStderr: true,
+		Cmd:          []string{"bash", "-c", cmd},
+	}
+
+	execResp, err := cli.ContainerExecCreate(ctx, containerID, execConfig)
+	if err != nil {
+		log.Fatalf("Failed to create exec command for '%s': %v", cmd, err)
+	}
+
+	attachResp, err := cli.ContainerExecAttach(ctx, execResp.ID, container.ExecAttachOptions{})
+	if err != nil {
+		log.Fatalf("Failed to attach to exec command for '%s': %v", cmd, err)
+	}
+	defer attachResp.Close()
+
+	if _, err := stdcopy.StdCopy(os.Stdout, os.Stderr, attachResp.Reader); err != nil {
+		log.Printf("Warning: Error streaming output for command '%s': %v", cmd, err)
+	}
+
+	exitCodeResp, err := cli.ContainerExecInspect(ctx, execResp.ID)
+	if err != nil {
+		log.Fatalf("Error inspecting exec command for '%s': %v", cmd, err)
+	}
+	if exitCodeResp.ExitCode != 0 {
+		log.Fatalf("Command '%s' failed with exit code: %d", cmd, exitCodeResp.ExitCode)
+	}
+	fmt.Printf("Successfully executed command: %s\n", cmd)
 }
 
 func generateDockerfile(osType string, dependencies []string) (string, error) {
@@ -662,8 +690,10 @@ func generateDockerfile(osType string, dependencies []string) (string, error) {
 			if (i+1)%5 == 0 && i < len(dependencies)-1 { // Newline every 5 deps for readability
 				dockerfileContent.WriteString("\n")
 			}
+
 		}
 		dockerfileContent.WriteString("\n")
+
 		dockerfileContent.WriteString("CMD [\"bash\"]\n") // Keep container open with bash
 	case "windows":
 		// Choose a Windows Server Core image. Ensure it's compatible with your Windows Docker host.
@@ -689,155 +719,67 @@ func generateDockerfile(osType string, dependencies []string) (string, error) {
 	return dockerfileContent.String(), nil
 }
 
-func buildAndRunDockerfile(dockerfileContent string, containerName string) error {
+// buildAndRunContainer builds a custom Docker image and runs a container from it.
+func readAndBuildContainer(containerName, dockerfilePath string) error {
 	ctx := context.Background()
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
-		return fmt.Errorf("failed to create Docker client: %v", err)
+		return fmt.Errorf("failed to create Docker client: %w", err)
 	}
 	defer cli.Close()
 
-	// --- Step 1: Prepare Build Context (Dockerfile) ---
-	// Create a temporary directory for the build context
-	tempDir, err := os.MkdirTemp("", "docker-build-context-*")
-	if err != nil {
-		return fmt.Errorf("failed to create temp directory for build context: %v", err)
-	}
-	defer os.RemoveAll(tempDir) // Clean up temp directory
-
-	dockerfilePath := filepath.Join(tempDir, "Dockerfile")
-	err = os.WriteFile(dockerfilePath, []byte(dockerfileContent), 0644)
-	if err != nil {
-		return fmt.Errorf("failed to write Dockerfile to temp directory: %v", err)
-	}
-	fmt.Printf("Dockerfile generated at: %s\n", dockerfilePath)
-
-	// Create a tar archive of the build context (the temp directory)
-	tarReader, err := archive.Tar(tempDir, archive.Gzip)
-	if err != nil {
-		return fmt.Errorf("failed to create tar archive for build context: %v", err)
-	}
-
-	// --- Step 2: Build the Docker Image ---
 	imageTag := strings.ToLower(containerName + ":latest")
-	fmt.Printf("Building Docker image: %s...\n", imageTag)
+
+	// --- Step 1: Read the Dockerfile content from the file system ---
+	dockerfileBytes, err := os.ReadFile(dockerfilePath)
+	if err != nil {
+		return fmt.Errorf("failed to read Dockerfile at %s: %w", dockerfilePath, err)
+	}
+
+	// --- Step 2: Create an in-memory tar archive with the Dockerfile ---
+	fmt.Println("Creating in-memory Docker build context...")
+	buf := new(bytes.Buffer)
+	tw := tar.NewWriter(buf)
+
+	header := &tar.Header{
+		Name: "Dockerfile",
+		Size: int64(len(dockerfileBytes)),
+		Mode: 0600,
+	}
+
+	if err := tw.WriteHeader(header); err != nil {
+		return fmt.Errorf("failed to write tar header: %w", err)
+	}
+	if _, err := tw.Write(dockerfileBytes); err != nil {
+		return fmt.Errorf("failed to write Dockerfile content to tar: %w", err)
+	}
+	if err := tw.Close(); err != nil {
+		return fmt.Errorf("failed to close tar writer: %w", err)
+	}
+
+	tarReader := bytes.NewReader(buf.Bytes())
+
+	// --- Step 3: Build the Docker Image from the in-memory tarball ---
+	fmt.Printf("Building Docker image '%s' from in-memory context...\n", imageTag)
 	buildOptions := build.ImageBuildOptions{
-		Dockerfile: "Dockerfile", // Relative path inside the tar archive
 		Tags:       []string{imageTag},
-		Remove:     true, // Remove intermediate containers after a successful build
+		Dockerfile: "Dockerfile",
+		Remove:     true, // Clean up intermediate containers
 	}
 
 	buildResponse, err := cli.ImageBuild(ctx, tarReader, buildOptions)
 	if err != nil {
-		return fmt.Errorf("failed to start image build: %v", err)
+		return fmt.Errorf("failed to start image build: %w", err)
 	}
 	defer buildResponse.Body.Close()
 
-	// Stream build output to stdout
-	fmt.Println("--- Docker Build Output ---")
-	if _, err := io.Copy(os.Stdout, buildResponse.Body); err != nil {
+	// Stream build output to standard output
+	if _, err := stdcopy.StdCopy(os.Stdout, os.Stderr, buildResponse.Body); err != nil {
 		log.Printf("Warning: Error streaming build output: %v", err)
 	}
-	fmt.Println("--- End Docker Build Output ---")
+	fmt.Printf("Successfully built image '%s'.\n", imageTag)
 
-	// --- Step 3: Run the Image in Interactive Mode ---
-	// First, check if a container with the same name already exists and remove it
-	_, err = cli.ContainerInspect(ctx, containerName)
-	if err == nil { // Container exists
-		fmt.Printf("Container '%s' already exists. Stopping and removing...\n", containerName)
-		timeout := 5 // Give it a few seconds to stop gracefully
-		if err := cli.ContainerStop(ctx, containerName, container.StopOptions{Timeout: &timeout}); err != nil {
-			log.Printf("Warning: Failed to stop existing container '%s': %v. Attempting to remove anyway.", containerName, err)
-		}
-		if err := cli.ContainerRemove(ctx, containerName, container.RemoveOptions{}); err != nil {
-			return fmt.Errorf("failed to remove existing container '%s': %v", containerName, err)
-		}
-		fmt.Printf("Existing container '%s' removed.\n", containerName)
-	}
-
-	fmt.Printf("Creating and starting container '%s' from image '%s' in interactive mode...\n", containerName, imageTag)
-
-	// Container configuration for interactive mode
-	config := &container.Config{
-		Image:        imageTag,
-		Tty:          true, // Allocate a TTY
-		OpenStdin:    true, // Keep STDIN open
-		AttachStdout: true, // Attach stdout
-		AttachStderr: true, // Attach stderr
-		// CMD is usually set in Dockerfile, but can be overridden here if needed.
-		// If Dockerfile has CMD, this will be the entry point.
-	}
-
-	hostConfig := &container.HostConfig{
-		// No specific host config needed for simple interactive use
-	}
-
-	resp, err := cli.ContainerCreate(ctx, config, hostConfig, nil, nil, containerName)
-	if err != nil {
-		return fmt.Errorf("failed to create container '%s': %v", containerName, err)
-	}
-	fmt.Printf("Successfully created container with ID: %s\n", resp.ID)
-
-	if err := cli.ContainerStart(ctx, resp.ID, container.StartOptions{}); err != nil {
-		return fmt.Errorf("failed to start container '%s': %v", containerName, err)
-	}
-	fmt.Printf("Successfully started container '%s'\n", containerName)
-
-	// --- Step 4: Attach to the Container's Primary Process (Interactive Shell) ---
-	fmt.Println("\n--- Container Provisioned. Attaching to Interactive Shell. ---")
-	fmt.Println("Type 'exit' to detach from the container (container will remain running).")
-
-	oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
-	if err != nil {
-		return fmt.Errorf("failed to set terminal to raw mode: %v", err)
-	}
-	defer func() {
-		fmt.Println("\n--- Detaching from container. Restoring terminal state. ---")
-		term.Restore(int(os.Stdin.Fd()), oldState)
-	}()
-
-	width, height, err := term.GetSize(int(os.Stdout.Fd()))
-	if err != nil {
-		log.Printf("Warning: Failed to get terminal size: %v. Using default.", err)
-		width, height = 80, 24
-	}
-
-	attachOptions := container.AttachOptions{
-		Stream:     true,
-		Stdin:      true,
-		Stdout:     true,
-		Stderr:     true,
-		Logs:       false,
-		DetachKeys: "ctrl-p,ctrl-q", // Standard Docker detach keys
-	}
-
-	hijackedResp, err := cli.ContainerAttach(ctx, resp.ID, attachOptions)
-	if err != nil {
-		return fmt.Errorf("failed to attach to container: %v", err)
-	}
-	defer hijackedResp.Close()
-
-	// Goroutine to copy container stdout/stderr to os.Stdout/Stderr
-	go func() {
-		_, err := io.Copy(os.Stdout, hijackedResp.Reader)
-		if err != nil && err != io.EOF { // Ignore EOF as it's normal for stream close
-			log.Printf("Error copying stdout from container: %v", err)
-		}
-	}()
-
-	// Goroutine to copy os.Stdin to container stdin
-	go func() {
-		_, err := io.Copy(hijackedResp.Conn, os.Stdin)
-		if err != nil && err != io.EOF { // Ignore EOF
-			log.Printf("Error copying stdin to container: %v", err)
-		}
-	}()
-
-	// Initial resize call
-	cli.ContainerResize(ctx, resp.ID, container.ResizeOptions{Width: uint(width), Height: uint(height)})
-
-	// Block indefinitely to keep the interactive session open.
-	select {} // Keep Go program alive until terminated by Ctrl+C or container exits.
+	return nil
 }
 
 func isInstalledOnLinux(dep string) bool {

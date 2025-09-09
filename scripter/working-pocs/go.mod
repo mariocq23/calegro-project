@@ -3,11 +3,12 @@ module scripter
 go 1.24.3
 
 require (
-	github.com/docker/docker v28.2.2+incompatible
+	github.com/docker/docker v28.4.0+incompatible
 	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
+	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/moby/go-archive v0.1.0 // indirect
 	github.com/moby/patternmatcher v0.6.0 // indirect
