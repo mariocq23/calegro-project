@@ -29,7 +29,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
       - name: Build and tag Docker image
-        run: docker build -t my-app-image .
+        run: |
+          cd scripter/working-pocs
+          docker build -t suck-it .
 
   redis_job:
     runs-on: [linux, arm64, calegro]
