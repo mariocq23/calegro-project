@@ -19,7 +19,7 @@ jobs:
         run: ls
       - name: Run Go build and test
         run: |
-          go build .
+          go build .\scripter\working-pocs
 
   docker_job:
     runs-on: [ubuntu-latest]
