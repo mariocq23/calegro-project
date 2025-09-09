@@ -16,7 +16,7 @@ jobs:
         with:
           go-version: '1.22'
       - name: Print current directory 👈
-        run: pwd
+        run: ls
       - name: Run Go build and test
         run: |
           go build .
