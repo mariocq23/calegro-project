@@ -16,7 +16,7 @@ jobs:
         with:
           go-version: '1.22'
       - name: Print current directory 👈
-        run: ls scripter\working-pocs
+        run: ls scripter/working-pocs
       - name: Run Go build and test
         run: |
           go build .\scripter\working-pocs
