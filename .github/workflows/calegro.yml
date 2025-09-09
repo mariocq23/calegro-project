@@ -33,6 +33,21 @@ jobs:
           cd scripter/working-pocs
           docker build -t suck-it .
 
+  redis_job:
+    runs-on: [linux, arm64, calegro]
+    services:
+      redis:
+        image: redis:6
+        ports:
+          - 6379:6379
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Run tests with Redis
+        run: |
+          echo "Running tests against Redis on macOS"
+
+
       - name: Install redis-cli
         run: sudo apt-get update && sudo apt-get install -y redis-tools
 
@@ -46,7 +61,7 @@ jobs:
           
           # Ping the Redis server using redis-cli.
           # The service container is accessible on localhost from the job runner.
-          redis-cli ping
+          redis-cli ping          
           
   rabbitmq_job:
     runs-on: [linux, X64, calegro]
