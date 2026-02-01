@@ -1,14 +1,18 @@
 header:
-  import: ../../../yaml-library/raw-program.yaml  => raw-program 
-  inherits: raw-program
+  inherits: ../../yaml-library/raw-program.yaml  => raw-program 
   name: window-program
 
 configuration:
-  agent-or-label: $(overridable) default
-  context-name: $(overridable) default
+  executor:
+    os:
+    user:
+    host:
+  context-name: default
+  container-orchestrator: docker-compose
+  enable-idempotency: true
 
 action:
-  type: console-program
+  environment-variables:
+    - (work-folder) home/workfolder
   api: $(overridable) default
-  output-mode: console #rest-api none
-  shutdown-signal: cascade #single none
+  

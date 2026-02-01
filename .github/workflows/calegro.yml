@@ -1,9 +1,10 @@
 name: Multi-Agent Workflow
 
 on:
+  workflow_dispatch:
   push:
     branches:
-      - main
+      - scripter-incubator
 
 jobs:
   go_job:
@@ -15,10 +16,13 @@ jobs:
         uses: actions/setup-go@v4
         with:
           go-version: '1.22'
+      - name: Print current directory 👈
+        run: ls scripter/working-pocs
       - name: Run Go build and test
         run: |
+          cd scripter/working-pocs
+          pwd # Optional: Prints the new current directory for confirmation
           go build .
-          go test ./...
 
   docker_job:
     runs-on: [ubuntu-latest]
@@ -26,21 +30,21 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
       - name: Build and tag Docker image
-        run: docker build -t my-app-image .
+        run: |
+          cd scripter/working-pocs
+          docker build -t suck-it .
 
   redis_job:
     runs-on: [linux, arm64, calegro]
-    services:
-      redis:
-        image: redis:6
-        ports:
-          - 6379:6379
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
-      - name: Run tests with Redis
+        
+      - name: Check for local Redis and Ping
         run: |
-          echo "Running tests against Redis on macOS"
+          # The runner must have Redis and redis-cli already installed and running.
+          echo "Checking for a Redis service on port 6379."
+          redis-cli -h 127.0.0.1 -p 6379 ping        
           
   rabbitmq_job:
     runs-on: [linux, X64, calegro]

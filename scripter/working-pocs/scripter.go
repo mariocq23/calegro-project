@@ -1,428 +1,136 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"io"
 	"log"
 	"os"
+	"os/exec"
 	"scripter/entities"
-	"strconv"
+	"scripter/utilities"
 	"strings"
 
-	"gopkg.in/yaml.v3"
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/image"
+	"github.com/docker/docker/client"
 )
 
-func main() {
-	filePath := os.Args[1]
-	yamls := readAllYamls(filePath)
-	for _, yaml := range yamls {
-		fmt.Printf("%+v\n", yaml)
-	}
-	generalProperties, contextProperties, signalSteps := generateYamlProperties(yamls)
-	for _, prop := range generalProperties {
-		fmt.Printf("%+v\n", prop)
-	}
-	for _, prop := range contextProperties {
-		fmt.Printf("%+v\n", prop)
-	}
-	for _, prop := range signalSteps {
-		fmt.Printf("%+v\n", prop)
-	}
+var security = utilities.Security{}
+var fileReader = utilities.FileReader{}
+var objectHandler = utilities.ObjectHandler{}
+var configuration = utilities.ActionConfiguration{}
+var queueHandler = utilities.QueueHandler{}
 
-	signal := generateSignal(generalProperties, signalSteps)
+func main() {
+
+	filePath := os.Args[1]
+	originatorPath := os.Args[2]
+	nickname := os.Args[3]
+	requireAcknowledge := os.Args[4]
+
+	yamls := fileReader.ReadAllYamls(filePath)
+
+	generalProperties, contextProperties, signalSteps, labels := objectHandler.GenerateYamlProperties(yamls)
+
+	signal := objectHandler.GenerateSignal(generalProperties, contextProperties, signalSteps, labels, originatorPath, nickname, requireAcknowledge)
+
+	configuration = configuration.SetConfigurationFromSignal(signal)
 
 	fmt.Printf("%+v\n", signal)
+
+	interpretSignal(signal)
 }
 
-func generateSignal(generalProperties []entities.YamlProperty, steps []entities.SignalStep) entities.Signal {
-	sealedProperties := []string{}
-	signal := entities.Signal{}
-	signal.Sender = generalProperties[len(generalProperties)-1].TemplateName
-	for _, prop := range generalProperties {
-		if containsString(sealedProperties, prop.Name) {
-			continue
-		}
-		signal = updateSignal(signal, prop)
-		if prop.Sealed {
-			sealedProperties = append(sealedProperties, prop.Name)
-		}
-	}
+func main2() {
+	// 1. Set up the context.
+	ctx := context.Background()
 
-	signal.Steps = steps
-
-	return signal
-}
-
-func stringToBoolStrict(s string) bool {
-	b, err := strconv.ParseBool(strings.ToLower(s))
+	// 2. Create a new Docker client.
+	cli, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
-		return false // Return false on error
+		log.Fatalf("Failed to create Docker client: %v", err)
 	}
-	return b
-}
+	defer cli.Close()
 
-func removeUnnecessaryString(rawString string) string {
-	finalValue := strings.ReplaceAll(rawString, "$(overridable)", "")
-
-	finalValue = strings.TrimSpace(finalValue)
-
-	return finalValue
-}
-
-func removeUnnecessaryStringInArray(values []string) []string {
-	var result []string
-	for _, s := range values {
-		if s != "$(overridable)" {
-			cleanedString := strings.TrimSpace(s)
-			result = append(result, cleanedString)
-		}
-	}
-	return result
-}
-
-func updateSignal(signal entities.Signal, prop entities.YamlProperty) entities.Signal {
-
-	if prop.Name == "Configuration.AgentOrLabel" && prop.Value != "" {
-		signal.Executor = removeUnnecessaryString(prop.Value)
-	}
-	if prop.Name == "Configuration.ContextName" && prop.Value != "" {
-		signal.Environment = removeUnnecessaryString(prop.Value)
-	}
-	if prop.Name == "Configuration.ExecutionMode" && prop.Value != "" {
-		signal.ExecutionMode = removeUnnecessaryString(prop.Value)
-	}
-	if prop.Name == "Configuration.BypassSecurity" && prop.Value != "" {
-		signal.BypassSecurity = stringToBoolStrict(removeUnnecessaryString(prop.Value))
-	}
-	if prop.Name == "Configuration.Security.CertificationHub" && prop.Value != "" {
-		signal.CertificationHub = removeUnnecessaryString(prop.Value)
-	}
-	if prop.Name == "Configuration.Security.AuthenticationHub" && prop.Value != "" {
-		signal.AuthenticationHub = removeUnnecessaryString(prop.Value)
-	}
-	if prop.Name == "Configuration.Security.AuthorizationHub" && prop.Value != "" {
-		signal.AuthorizationHub = removeUnnecessaryString(prop.Value)
-	}
-	if prop.Name == "Action.Api" && prop.Value != "" {
-		signal.Api = removeUnnecessaryString(prop.Value)
-	}
-	if prop.Name == "Action.NameOrFullPath" && prop.Value != "" {
-		signal.ExecutablePath = removeUnnecessaryString(prop.Value)
-	}
-	if prop.Name == "Action.Type" && prop.Value != "" {
-		signal.Type = removeUnnecessaryString(prop.Value)
-	}
-	if prop.Name == "Action.OutputMode" && prop.Value != "" {
-		signal.OutputMode = removeUnnecessaryString(prop.Value)
-	}
-	if prop.Name == "Action.ShutdownSignal" && prop.Value != "" {
-		signal.ShutdownSignal = removeUnnecessaryString(prop.Value)
-	}
-	if prop.Name == "Action.Platform.OsFamily" && prop.Value != "" {
-		signal.Os = removeUnnecessaryString(prop.Value)
-	}
-	if prop.Name == "Action.Platform.PackageInstaller" && prop.Value != "" {
-		signal.PackageInstaller = removeUnnecessaryString(prop.Value)
-	}
-	if prop.Name == "Action.Platform.InstallationDependencies" && prop.Values != nil && len(prop.Values) > 0 {
-		signal.InstallationDependencies = removeUnnecessaryStringInArray(prop.Values)
-	}
-	if prop.Name == "Action.InitialInputs" && prop.Values != nil && len(prop.Values) > 0 {
-		signal.Arguments = removeUnnecessaryStringInArray(prop.Values)
-	}
-	if prop.Name == "Action.EnvironmentVariables" && prop.Values != nil && len(prop.Values) > 0 {
-		signal.EnvironmentVariables = removeUnnecessaryStringInArray(prop.Values)
-	}
-
-	return signal
-}
-
-func filterBy(values []string, filter string) []string {
-	var filtered []string
-	for _, s := range values {
-		if strings.HasPrefix(s, filter) {
-			filtered = append(filtered, s)
-		}
-	}
-	return filtered
-}
-
-func reverseYamlArray(yamls []*entities.YamlFile) []*entities.YamlFile {
-	reversed := make([]*entities.YamlFile, len(yamls))
-	for i, j := 0, len(yamls)-1; i < len(yamls); i, j = i+1, j-1 {
-		reversed[i] = yamls[j]
-	}
-	return reversed
-}
-
-func generateYamlProperties(yamls []*entities.YamlFile) ([]entities.YamlProperty, []entities.YamlContextProperty, []entities.SignalStep) {
-
-	yamlProperties := []entities.YamlProperty{}
-	yamlContextProperties := []entities.YamlContextProperty{}
-	signalSteps := []entities.SignalStep{}
-	finalSignalSteps := []entities.SignalStep{}
-	overridableSteps := []string{}
-
-	for _, yaml := range yamls {
-
-		yamlProperties = append(yamlProperties, generateProperty("Configuration.AgentOrLabel", yaml.Configuration.AgentOrLabel, yaml.Header.Name))
-		yamlProperties = append(yamlProperties, generateProperty("Configuration.ContextName", yaml.Configuration.ContextName, yaml.Header.Name))
-		yamlProperties = append(yamlProperties, generateProperty("Configuration.ExecutionMode", yaml.Configuration.ExecutionMode, yaml.Header.Name))
-		yamlProperties = append(yamlProperties, generateProperty("Configuration.BypassSecurity", strconv.FormatBool(yaml.Configuration.BypassSecurity), yaml.Header.Name))
-		yamlProperties = append(yamlProperties, generateProperty("Configuration.Security.CertificationHub", yaml.Configuration.Security.CertificationHub, yaml.Header.Name))
-		yamlProperties = append(yamlProperties, generateProperty("Configuration.Security.AuthenticationHub", yaml.Configuration.Security.AuthenticationHub, yaml.Header.Name))
-		yamlProperties = append(yamlProperties, generateProperty("Configuration.Security.AuthorizationHub", yaml.Configuration.Security.AuthorizationHub, yaml.Header.Name))
-
-		yamlProperties = append(yamlProperties, generateProperty("Action.Api", yaml.Action.Api, yaml.Header.Name))
-		yamlProperties = append(yamlProperties, generateProperty("Action.NameOrFullPath", yaml.Action.NameOrFullPath, yaml.Header.Name))
-		yamlProperties = append(yamlProperties, generateProperty("Action.Type", yaml.Action.Type, yaml.Header.Name))
-		yamlProperties = append(yamlProperties, generateProperty("Action.OutputMode", yaml.Action.OutputMode, yaml.Header.Name))
-		yamlProperties = append(yamlProperties, generateProperty("Action.ShutdownSignal", yaml.Action.ShutdownSignal, yaml.Header.Name))
-		yamlProperties = append(yamlProperties, generateProperty("Action.Platform.OsFamily", yaml.Action.Platform.OsFamily, yaml.Header.Name))
-		yamlProperties = append(yamlProperties, generateProperty("Action.Platform.PackageInstaller", yaml.Action.Platform.PackageInstaller, yaml.Header.Name))
-		yamlProperties = append(yamlProperties, generateArrayProperty("Action.Platform.InstallationDependencies", yaml.Action.Platform.InstallationDependencies, yaml.Header.Name))
-		yamlProperties = append(yamlProperties, generateArrayProperty("Action.InitialInputs", yaml.Action.InitialInputs, yaml.Header.Name))
-
-		for index, context := range yaml.Contexts {
-			yamlContextProperties = append(yamlContextProperties, generateContextProperty("Context.Context", context.Context, yaml.Header.Name, index))
-			yamlContextProperties = append(yamlContextProperties, generateContextProperty("Context.Dependencies.Location", context.Dependencies.Location, yaml.Header.Name, index))
-			yamlContextProperties = append(yamlContextProperties, generateContextArrayProperty("Context.Dependencies.List", context.Dependencies.List, yaml.Header.Name, index))
-			yamlContextProperties = append(yamlContextProperties, generateContextArrayProperty("Context.ContextInitialInputs", context.ContextInitialInputs, yaml.Header.Name, index))
-			yamlContextProperties = append(yamlContextProperties, generateContextArrayProperty("Context.EnvironmentVariables", context.EnvironmentVariables, yaml.Header.Name, index))
-		}
-		for index, step := range yaml.Steps {
-			if !strings.Contains(step.Step, "$(overridable)") && strings.Trim(step.Step, " ") != "" && !strings.Contains(step.Pointer, "$(overridable)") && strings.Trim(step.Pointer, " ") != "" {
-				signalSteps = append(signalSteps, generateSignalStep(step.Step, step.Pointer, index, yaml.Header.Name))
-			} else {
-				overridableSteps = append(overridableSteps, yaml.Header.Name)
-			}
-		}
-
-		if len(yaml.Steps) == 0 {
-			overridableSteps = append(overridableSteps, yaml.Header.Name)
-		}
-	}
-
-	//"$(append)"
-	//for _, step := range overridableSteps {
-	//if   {
-	//	finalSignalSteps = append(finalSignalSteps, step)
-	//}
-	//}
-
-	//"$(append)"
-
-	for _, step := range signalSteps {
-		ancestors := obtainAllSourceAncestors(step.Source, yamls)
-
-		if containsString(overridableSteps, step.Source) {
-			finalSignalSteps = append(finalSignalSteps, step)
-		} else {
-			for _, ancestor := range ancestors {
-				if containsString(overridableSteps, ancestor) {
-					finalSignalSteps = append(finalSignalSteps, step)
-				}
-			}
-		}
-	}
-
-	return yamlProperties, yamlContextProperties, finalSignalSteps
-}
-
-func appendNew(ancestors []string, currentAncestors []string) []string {
-	for _, currentAncestor := range currentAncestors {
-		if !containsString(ancestors, currentAncestor) {
-			ancestors = append(ancestors, currentAncestor)
-		}
-	}
-	return ancestors
-}
-
-func readAllYamls(path string) []*entities.YamlFile {
-
-	yamlsArray := make([]*entities.YamlFile, 0)
-
-	yaml := readYaml(path)
-
-	if strings.TrimSpace(yaml.Header.Inherits) != "" {
-		parentPath, parentName := extractBeforeAndAfterValues(yaml.Header.Import)
-		importInherit := entities.ImportInherit{ParentPath: parentPath, ParentName: parentName}
-		yaml.Parent = readYaml(importInherit.ParentPath)
-
-		newYamlArray := readAllYamls(importInherit.ParentPath)
-		yamlsArray = append(yamlsArray, newYamlArray...)
-	}
-
-	yamlsArray = append(yamlsArray, yaml)
-
-	return yamlsArray
-}
-
-func obtainAllSourceAncestors(templateName string, yamls []*entities.YamlFile) []string {
-	yamlsArray := make([]string, 0)
-
-	template := findYamlByName(yamls, templateName)
-
-	if template != nil && strings.TrimSpace(template.Header.Inherits) != "" {
-		parentPath, parentName := extractBeforeAndAfterValues(template.Header.Import)
-		importInherit := entities.ImportInherit{ParentPath: parentPath, ParentName: parentName}
-		template.Parent = readYaml(importInherit.ParentPath)
-
-		newYamlArray := obtainAllSourceAncestors(importInherit.ParentPath, yamls)
-		yamlsArray = append(yamlsArray, newYamlArray...)
-	}
-
-	yamlsArray = append(yamlsArray, template.Header.Name)
-
-	return yamlsArray
-
-}
-
-func findYamlByName(yamls []*entities.YamlFile, templateName string) *entities.YamlFile {
-	for _, yaml := range yamls {
-		if yaml.Header.Name == templateName {
-			return yaml
-		}
-	}
-	return nil
-}
-
-func generateSignalStep(step string, pointer string, index int, templateName string) entities.SignalStep {
-	signalStep := entities.SignalStep{
-		Name:    step,
-		Pointer: pointer,
-		Source:  templateName,
-	}
-
-	return signalStep
-}
-
-func generateProperty(name string, value string, templateName string) entities.YamlProperty {
-	yamlProperty := entities.YamlProperty{Name: name, Value: value, TemplateName: templateName}
-	if !strings.Contains(value, "$(overridable)") && value != "" {
-		yamlProperty.Sealed = true
-	}
-	if strings.Contains(value, "default") {
-		yamlProperty.Default = true
-	}
-	return yamlProperty
-}
-
-func generateContextProperty(name string, value string, templateName string, index int) entities.YamlContextProperty {
-	yamlProperty := entities.YamlContextProperty{Name: name, Value: value, TemplateName: templateName, Position: index}
-	if !strings.Contains(value, "$(overridable)") && value != "" {
-		yamlProperty.Sealed = true
-	}
-	if strings.Contains(value, "default") {
-		yamlProperty.Default = true
-	}
-	return yamlProperty
-}
-
-func generateArrayProperty(name string, values []string, templateName string) entities.YamlProperty {
-	yamlProperty := entities.YamlProperty{Name: name, Values: values, TemplateName: templateName}
-	if !containsString(values, "$(overridable)") && values != nil && len(values) > 0 {
-		yamlProperty.Sealed = true
-	}
-	if containsString(values, "default") {
-		yamlProperty.Default = true
-	}
-	return yamlProperty
-}
-
-func generateContextArrayProperty(name string, values []string, templateName string, index int) entities.YamlContextProperty {
-	yamlProperty := entities.YamlContextProperty{Name: name, Values: values, TemplateName: templateName, Position: index}
-	if !containsString(values, "$(overridable)") && values != nil && len(values) > 0 {
-		yamlProperty.Sealed = true
-	}
-	if containsString(values, "default") {
-		yamlProperty.Default = true
-	}
-	return yamlProperty
-}
-
-func containsString(slice []string, str string) bool {
-	for _, item := range slice {
-		if item == str {
-			return true
-		}
-	}
-	return false
-}
-
-func extractBeforeAndAfterValues(input string) (string, string) {
-	parts := strings.Split(input, "=>")
-	if len(parts) == 2 {
-		before := strings.TrimSpace(parts[0])
-		after := strings.TrimSpace(parts[1])
-		return before, after
-	}
-	return "", "" // Return empty strings if the split doesn't produce two parts
-}
-
-func readYaml(filePath string) *entities.YamlFile {
-
-	dir, err := os.Getwd()
+	// 3. Pull the Docker image.  We'll use a Windows image that has Chocolatey.
+	//   Make sure the base image you select has chocolatey.
+	reader, err := cli.ImagePull(ctx, "mcr.microsoft.com/windows/servercore:ltsc2022", image.PullOptions{})
 	if err != nil {
-		fmt.Println("Error getting current directory:", err)
+		log.Fatalf("Failed to pull image: %v", err)
 	}
-	fmt.Println("Current directory:", dir)
+	io.Copy(os.Stdout, reader)
 
-	data, err := os.ReadFile(filePath)
+	// 4. Configure the container.  Now, set the command to install
+	//    a list of dependencies using Chocolatey, and then start a shell.
+	deps := []string{"git", "curl", "nodejs"}                                      // Example: Install Git, curl, and Node.js.
+	chocoInstallCmd := fmt.Sprintf("choco install %s -y", strings.Join(deps, ",")) // Join the dependencies with commas.
+	cmdStr := fmt.Sprintf("%s; powershell.exe", chocoInstallCmd)                   // Install and then start powershell
+	containerConfig := &container.Config{
+		Image: "mcr.microsoft.com/windows/servercore:ltsc2022", // Use the Windows image.
+		Cmd:   []string{"powershell", "-Command", cmdStr},      // Run the choco install command in PowerShell.
+		Tty:   true,                                            // IMPORTANT: Set Tty to true to keep the container running and interactive
+	}
+
+	// 5. Configure the host.
+	hostConfig := &container.HostConfig{}
+
+	// 6. Create the container.
+	resp, err := cli.ContainerCreate(ctx, containerConfig, hostConfig, nil, nil, "my-choco-container")
+	if err != nil {
+		log.Fatalf("Failed to create container: %v", err)
+	}
+
+	// 7. Start the container.
+	if err := cli.ContainerStart(ctx, resp.ID, container.StartOptions{}); err != nil {
+		log.Fatalf("Failed to start container: %v", err)
+	}
+
+	// 8. Print the container ID.
+	fmt.Printf("Container ID: %s\n", resp.ID)
+
+	// 9.  No longer wait, just print a message that it is running
+	fmt.Println("Container is running.  You can connect to it using 'docker exec -it my-choco-container powershell'")
+}
+
+// Executor Lobby
+func interpretSignal(signal entities.Signal) {
+
+	if !security.ValidateSecurity(signal) {
+		return
+	}
+
+	configuration.SetGeneralConfiguration(signal)
+
+	//queueHandler.QueueQuaySignals(signal)
+
+	//execute("algo", signal.Arguments)
+}
+
+// Set labels for the signal so a runner can pick it
+func setLabels(labels []string) {
+
+}
+
+func execute(command string, args []string) {
+	// Example with a config file:
+	//cmd := exec.Command("dosbox", "-conf", "my_dosbox.conf")
+
+	// Example with commands (using -c):
+
+	// Capture output (optional)
+	cmd := exec.Command(command, args...)
+	out, err := cmd.CombinedOutput()
+
+	if err != nil {
+		log.Fatalf("cmd.Run() failed with %s\n", err)
+	}
+	fmt.Printf("combined out:\n%s\n", string(out))
+
+	err = cmd.Start()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	var yamlFile entities.YamlFile
-	err = yaml.Unmarshal(data, &yamlFile)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	return &yamlFile
+	fmt.Println(command + " started with config/commands!")
 }
-
-// func interpretYaml(yaml YamlFile) {
-// 	//Parent
-
-// 	if strings.TrimSpace(yaml.Header.Inherits) != "" {
-// 		var parentYamlFile = readYaml(yaml.Header.Inherits)
-// 		interpretYaml(parentYamlFile)
-// 	}
-
-// 	checkConfiguration(yaml)
-
-// 	//Security
-// 	//Chosen Context
-// 	//Steps if any, otherwise the solely Action
-// }
-
-// func checkConfiguration(yaml YamlFile) {
-
-// }
-
-// func setLabels(labels []string) {
-
-// }
-
-// func execute(command string, args []string) {
-// 	// Example with a config file:
-// 	//cmd := exec.Command("dosbox", "-conf", "my_dosbox.conf")
-
-// 	// Example with commands (using -c):
-
-// 	// Capture output (optional)
-// 	cmd := exec.Command(command, args...)
-// 	out, err := cmd.CombinedOutput()
-
-// 	if err != nil {
-// 		log.Fatalf("cmd.Run() failed with %s\n", err)
-// 	}
-// 	fmt.Printf("combined out:\n%s\n", string(out))
-
-// 	err = cmd.Start()
-// 	if err != nil {
-// 		log.Fatal(err)
-// 	}
-
-// 	fmt.Println(command + " started with config/commands!")
-// }

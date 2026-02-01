@@ -1,7 +1,10 @@
 header:
-  import: ../../../yaml-library/base.yaml  => base
-  inherits: base
+  inherits: ../../yaml-library/base.yaml  => base
   name: executable
 
 action:
   shutdown-signal: cascade #single none
+
+configuration:
+  containerize: true
+  can-overwrite: true
