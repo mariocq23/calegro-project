@@ -32,7 +32,7 @@ jobs:
       - name: Build and tag Docker image
         run: |
           cd scripter/working-pocs
-          docker build -t suck-it .
+          docker build -t calegro-test .
 
   redis_job:
     runs-on: [linux, arm64, calegro]

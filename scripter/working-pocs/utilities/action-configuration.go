@@ -584,7 +584,7 @@ func installDependenciesOnLinuxContainer() {
 	}
 	dockerfilePath := filepath.Join(wd, "Dockerfile")
 
-	err = buildImage("suck-it", dockerfilePath)
+	err = buildImage("calegro-test", dockerfilePath)
 	if err != nil {
 		log.Fatalf("Provisioning failed: %v", err)
 	}
